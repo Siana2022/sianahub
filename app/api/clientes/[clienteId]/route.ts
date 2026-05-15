@@ -23,6 +23,7 @@ const updateSchema = z.object({
   sgtm_url: z.string().optional().nullable(),
   sgtm_service_name: z.string().optional().nullable(),
   gcp_project_id: z.string().optional().nullable(),
+  resumen_widgets: z.array(z.string()).optional(),
 })
 
 export async function GET(
