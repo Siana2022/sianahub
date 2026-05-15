@@ -1,6 +1,6 @@
 import { getGlobalGoogleToken } from './token'
 
-const GADS_BASE = 'https://googleads.googleapis.com/v18'
+const GADS_BASE = 'https://googleads.googleapis.com/v17'
 
 async function gadsSearch(customerId: string, query: string) {
   const token    = await getGlobalGoogleToken()
