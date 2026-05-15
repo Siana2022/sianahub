@@ -19,20 +19,24 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
+    // Delete existing global token and re-insert (partial index incompatible with upsert)
     await supabase
       .from('oauth_tokens')
-      .upsert(
-        {
-          plataforma:    'google',
-          token_type:    'global',
-          access_token:  tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at:    new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          scope:         tokens.scope,
-          cliente_id:    null,
-        },
-        { onConflict: 'plataforma' }
-      )
+      .delete()
+      .eq('plataforma', 'google')
+      .eq('token_type', 'global')
+
+    await supabase
+      .from('oauth_tokens')
+      .insert({
+        plataforma:    'google',
+        token_type:    'global',
+        access_token:  tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at:    new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        scope:         tokens.scope,
+        cliente_id:    null,
+      })
 
     return NextResponse.redirect(`${base}/config?success=google`)
   } catch (err) {

@@ -5,8 +5,7 @@ alter table oauth_tokens alter column cliente_id drop not null;
 alter table oauth_tokens add column if not exists token_type text not null default 'client'
   check (token_type in ('global', 'client'));
 
--- Global tokens don't need a unique per-client constraint
-drop index if exists oauth_tokens_cliente_id_plataforma_key;
+-- Drop the old unique constraint (drops the index automatically)
 alter table oauth_tokens drop constraint if exists oauth_tokens_cliente_id_plataforma_key;
 
 -- New: unique global token per platform, and unique client token per platform+client
