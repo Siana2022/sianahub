@@ -1,13 +1,12 @@
 'use client'
 
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
-import type { ResolvedMetric, MetricDefinition } from '@/lib/mock/custom'
-import { formulaToString } from '@/lib/mock/custom'
+import type { ResolvedMetric } from '@/lib/mock/custom'
+import { formulaToString, formatMetricValue } from '@/lib/mock/custom'
 
 type Props = {
   grupo: string
   metrics: ResolvedMetric[]
-  formatValue: (v: number, u: MetricDefinition['unidad']) => string
 }
 
 function delta(current: number, prev: number) {
@@ -15,7 +14,7 @@ function delta(current: number, prev: number) {
   return ((current - prev) / prev) * 100
 }
 
-export default function MetricGroupSection({ grupo, metrics, formatValue }: Props) {
+export default function MetricGroupSection({ grupo, metrics }: Props) {
   return (
     <div>
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">{grupo}</h3>
@@ -33,7 +32,7 @@ export default function MetricGroupSection({ grupo, metrics, formatValue }: Prop
                 <div>
                   <p className="text-xs text-gray-400 leading-none mb-1.5">{def.nombre_visible}</p>
                   <p className="text-2xl font-semibold text-white leading-none">
-                    {formatValue(current, def.unidad)}
+                    {formatMetricValue(current, def.unidad)}
                   </p>
                 </div>
                 {d !== null && (

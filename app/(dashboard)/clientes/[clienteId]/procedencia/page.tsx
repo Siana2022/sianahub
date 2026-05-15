@@ -1,3 +1,5 @@
+'use client'
+
 import KpiCard from '@/components/dashboard/KpiCard'
 import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'

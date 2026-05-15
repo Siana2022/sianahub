@@ -1,3 +1,5 @@
+'use client'
+
 import KpiCard from '@/components/dashboard/KpiCard'
 import LineChart from '@/components/charts/LineChart'
 import { mockMetaSummary, mockMetaCampaigns } from '@/lib/mock/metricas'

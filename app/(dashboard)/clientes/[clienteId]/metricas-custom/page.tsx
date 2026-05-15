@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
-import { mockResolvedMetrics, formatMetricValue, type ResolvedMetric } from '@/lib/mock/custom'
+import { mockResolvedMetrics, type ResolvedMetric } from '@/lib/mock/custom'
 import MetricGroupSection from '@/components/custom/MetricGroupSection'
 
 export default function MetricasCustomPage({ params }: { params: Promise<{ clienteId: string }> }) {
@@ -31,7 +31,6 @@ export default function MetricasCustomPage({ params }: { params: Promise<{ clien
           key={grupo}
           grupo={grupo}
           metrics={metrics}
-          formatValue={formatMetricValue}
         />
       ))}
     </div>
