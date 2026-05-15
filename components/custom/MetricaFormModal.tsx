@@ -47,8 +47,8 @@ function extractSimpleFormula(node?: FormulaNode): SimpleFormula {
   }
 }
 
-const inputCls = "w-full bg-white border border-[#e2dfd8] px-3 py-2 text-sm text-[#1a1a18] placeholder-[#9a9a8e] focus:outline-none focus:border-[#1a1a18] transition-colors"
-const labelCls = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e] mb-1.5"
+const inputCls = "w-full bg-white border border-[#e8e8e8] px-3 py-2 text-sm text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors"
+const labelCls = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
 
 export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
   const [nombre,  setNombre]  = useState(initial?.nombre_visible ?? '')
@@ -80,10 +80,10 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1a1a18]/50">
-      <div className="bg-[#f7f5f0] border border-[#e2dfd8] w-full max-w-lg mx-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000000]/50">
+      <div className="bg-[#ffffff] border border-[#e8e8e8] w-full max-w-lg mx-4 shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e2dfd8] bg-[#1a1a18]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8e8e8] bg-[#000000]">
           <p className="font-display text-base font-bold text-white">
             {initial ? 'Editar métrica' : 'Nueva métrica'}
           </p>
@@ -107,13 +107,13 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
           {/* Tipo */}
           <div>
             <label className={labelCls}>Tipo de métrica</label>
-            <div className="flex gap-0 border border-[#e2dfd8]">
+            <div className="flex gap-0 border border-[#e8e8e8]">
               {(['event_count', 'formula'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTipo(t)}
                   className={`flex-1 py-2 font-mono text-[10px] uppercase tracking-wide transition-colors ${
-                    tipo === t ? 'bg-[#1a1a18] text-white' : 'bg-white text-[#9a9a8e] hover:text-[#1a1a18]'
+                    tipo === t ? 'bg-[#000000] text-white' : 'bg-white text-[#888888] hover:text-[#000000]'
                   }`}
                 >
                   {t === 'event_count' ? 'Evento GA4' : 'Fórmula'}
@@ -130,7 +130,7 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
           )}
 
           {tipo === 'formula' && (
-            <div className="bg-white border border-[#e2dfd8] p-4 space-y-4">
+            <div className="bg-white border border-[#e8e8e8] p-4 space-y-4">
               <p className={labelCls}>Fórmula: A operación B</p>
               <div>
                 <label className={labelCls}>A — lado izquierdo</label>
@@ -144,11 +144,11 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
               </div>
               <div>
                 <label className={labelCls}>Operación</label>
-                <div className="flex gap-0 border border-[#e2dfd8]">
+                <div className="flex gap-0 border border-[#e8e8e8]">
                   {(['+', '-', '*', '/'] as const).map(op => (
                     <button key={op} onClick={() => setFormula(f => ({ ...f, op }))}
                       className={`flex-1 py-2 font-mono text-sm font-bold transition-colors ${
-                        formula.op === op ? 'bg-[#e8321a] text-white' : 'bg-white text-[#4a4a42] hover:bg-[#f7f5f0]'
+                        formula.op === op ? 'bg-[#F7415C] text-white' : 'bg-white text-[#555555] hover:bg-[#ffffff]'
                       }`}>{op}</button>
                   ))}
                 </div>
@@ -163,9 +163,9 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
                     placeholder="nombre del evento" className={`${inputCls} mt-1 font-mono text-xs`} />
                 )}
               </div>
-              <div className="border border-[#e2dfd8] bg-[#f7f5f0] px-3 py-2">
-                <p className="font-mono text-[9px] uppercase tracking-wide text-[#9a9a8e] mb-1">Vista previa</p>
-                <p className="font-mono text-xs text-[#e8321a]">{formulaToString(buildFormulaNode(formula))}</p>
+              <div className="border border-[#e8e8e8] bg-[#ffffff] px-3 py-2">
+                <p className="font-mono text-[9px] uppercase tracking-wide text-[#888888] mb-1">Vista previa</p>
+                <p className="font-mono text-xs text-[#F7415C]">{formulaToString(buildFormulaNode(formula))}</p>
               </div>
             </div>
           )}
@@ -184,7 +184,7 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
               <label className={labelCls}>Colores delta</label>
               <button onClick={() => setInvertir(v => !v)}
                 className={`w-full py-2 font-mono text-[10px] uppercase tracking-wide border transition-colors ${
-                  invertir ? 'bg-[#fef0ed] border-[#e8321a] text-[#e8321a]' : 'bg-white border-[#e2dfd8] text-[#9a9a8e] hover:border-[#1a1a18]'
+                  invertir ? 'bg-[#fff0f2] border-[#F7415C] text-[#F7415C]' : 'bg-white border-[#e8e8e8] text-[#888888] hover:border-[#000000]'
                 }`}>
                 {invertir ? 'Invertido (↓ = mejor)' : 'Normal (↑ = mejor)'}
               </button>
@@ -192,12 +192,12 @@ export default function MetricaFormModal({ initial, onSave, onClose }: Props) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#e2dfd8] bg-white">
-          <button onClick={onClose} className="font-mono text-[10px] uppercase tracking-wide text-[#9a9a8e] hover:text-[#1a1a18] px-4 py-2 transition-colors">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#e8e8e8] bg-white">
+          <button onClick={onClose} className="font-mono text-[10px] uppercase tracking-wide text-[#888888] hover:text-[#000000] px-4 py-2 transition-colors">
             Cancelar
           </button>
           <button onClick={handleSave} disabled={!nombre.trim() || !grupo.trim()}
-            className="font-mono text-[10px] uppercase tracking-wide bg-[#1a1a18] text-white px-5 py-2 hover:bg-[#e8321a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            className="font-mono text-[10px] uppercase tracking-wide bg-[#000000] text-white px-5 py-2 hover:bg-[#F7415C] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             Guardar
           </button>
         </div>

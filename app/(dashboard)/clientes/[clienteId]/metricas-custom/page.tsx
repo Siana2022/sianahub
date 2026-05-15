@@ -14,7 +14,7 @@ export default function MetricasCustomPage({ params }: { params: Promise<{ clien
   }
 
   return (
-    <div className="p-6 space-y-8 max-w-5xl">
+    <div className="p-6 space-y-8">
       <div className="flex items-center justify-between">
         <p className="text-gray-400 text-sm">Métricas y fórmulas personalizadas para este cliente</p>
         <Link

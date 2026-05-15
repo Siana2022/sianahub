@@ -19,7 +19,7 @@ export default function LeadsPage() {
   }))
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
+    <div className="p-6 space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Leads totales" value={totalLeads} prev={totalPrev} />
         <KpiCard label="Google Ads" value={ads.conversions} prev={ads.conversions_prev} />

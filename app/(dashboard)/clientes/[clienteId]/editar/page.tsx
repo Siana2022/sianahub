@@ -22,7 +22,7 @@ export default async function EditarClientePage({
   return (
     <div className="flex flex-col h-full">
       <Topbar title={`Editar — ${cliente.nombre}`} />
-      <div className="p-6 max-w-3xl">
+      <div className="p-6">
         <ClienteForm cliente={cliente} />
       </div>
     </div>

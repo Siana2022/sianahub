@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Topbar from '@/components/layout/Topbar'
 import ClienteTabs from '@/components/layout/ClienteTabs'
+import AiPanel from '@/components/ai/AiPanel'
 
 export default async function ClienteLayout({
   children,
@@ -25,9 +26,17 @@ export default async function ClienteLayout({
     <div className="flex flex-col h-full">
       <Topbar title={cliente.nombre} />
       <ClienteTabs clienteId={clienteId} />
-      <div className="flex-1 overflow-auto">
-        {children}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          {children}
+        </div>
+        <AiPanel
+          clienteId={clienteId}
+          clienteName={cliente.nombre}
+          currentTab="dashboard"
+        />
       </div>
     </div>
   )
 }
+export const dynamic = 'force-dynamic'

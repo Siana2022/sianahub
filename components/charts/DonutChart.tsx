@@ -2,7 +2,7 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
-const COLORS = ['#e8321a', '#1a4fa0', '#1a7a4a', '#d4820a', '#9a9a8e', '#4a4a42']
+const COLORS = ['#F7415C', '#1a4fa0', '#1a7a4a', '#d4820a', '#888888', '#555555']
 
 interface DataItem { name: string; value: number }
 
@@ -20,11 +20,11 @@ export default function DonutChart({ data, height = 220, formatValue }: Props) {
           {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
         </Pie>
         <Tooltip
-          contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2dfd8', borderRadius: 0, fontSize: 12 }}
+          contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: 0, fontSize: 12 }}
           itemStyle={{ fontSize: 12 }}
           formatter={(v: number) => [formatValue ? formatValue(v) : v]}
         />
-        <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, color: '#9a9a8e', fontFamily: 'monospace' }} />
+        <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, color: '#888888', fontFamily: 'monospace' }} />
       </PieChart>
     </ResponsiveContainer>
   )

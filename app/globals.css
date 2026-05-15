@@ -9,27 +9,27 @@
 
   /* shadcn compat — light mode only */
   --color-background:        #ffffff;
-  --color-foreground:        #1a1a18;
+  --color-foreground:        #000000;
   --color-card:              #ffffff;
-  --color-card-foreground:   #1a1a18;
-  --color-border:            #e2dfd8;
-  --color-input:             #e2dfd8;
-  --color-ring:              #9a9a8e;
-  --color-primary:           #1a1a18;
+  --color-card-foreground:   #000000;
+  --color-border:            #e8e8e8;
+  --color-input:             #e8e8e8;
+  --color-ring:              #888888;
+  --color-primary:           #000000;
   --color-primary-foreground: #ffffff;
-  --color-muted:             #f7f5f0;
-  --color-muted-foreground:  #9a9a8e;
+  --color-muted:             #ffffff;
+  --color-muted-foreground:  #888888;
   --radius-sm:  2px;
   --radius-md:  2px;
   --radius-lg:  2px;
 }
 
 @layer base {
-  * { @apply border-[#e2dfd8]; }
+  * { @apply border-[#e8e8e8]; }
   body { font-family: var(--font-body, 'IBM Plex Sans', sans-serif); }
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e2dfd8; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #e8e8e8; border-radius: 2px; }

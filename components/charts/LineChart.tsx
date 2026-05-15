@@ -26,24 +26,24 @@ export default function LineChart({ data, series, xKey = 'fecha', height = 260, 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ReLineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2dfd8" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e8" />
         <XAxis
           dataKey={xKey}
           tickFormatter={formatDate}
-          tick={{ fill: '#9a9a8e', fontSize: 10, fontFamily: 'var(--font-mono, monospace)' }}
-          axisLine={{ stroke: '#e2dfd8' }}
+          tick={{ fill: '#888888', fontSize: 10, fontFamily: 'var(--font-mono, monospace)' }}
+          axisLine={{ stroke: '#e8e8e8' }}
           tickLine={false}
           interval="preserveStartEnd"
         />
         <YAxis
-          tick={{ fill: '#9a9a8e', fontSize: 10, fontFamily: 'var(--font-mono, monospace)' }}
+          tick={{ fill: '#888888', fontSize: 10, fontFamily: 'var(--font-mono, monospace)' }}
           axisLine={false}
           tickLine={false}
           tickFormatter={formatY}
         />
         <Tooltip
-          contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2dfd8', borderRadius: 0, fontSize: 12 }}
-          labelStyle={{ color: '#9a9a8e', fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.05em' }}
+          contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: 0, fontSize: 12 }}
+          labelStyle={{ color: '#888888', fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.05em' }}
           itemStyle={{ fontSize: 12 }}
           labelFormatter={formatDate}
           formatter={(value: number, name: string) =>
@@ -51,7 +51,7 @@ export default function LineChart({ data, series, xKey = 'fecha', height = 260, 
           }
         />
         {series.length > 1 && (
-          <Legend wrapperStyle={{ fontSize: 11, color: '#9a9a8e', fontFamily: 'monospace' }} iconType="circle" iconSize={7} />
+          <Legend wrapperStyle={{ fontSize: 11, color: '#888888', fontFamily: 'monospace' }} iconType="circle" iconSize={7} />
         )}
         {series.map(s => (
           <Line

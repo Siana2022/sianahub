@@ -34,9 +34,9 @@ function toFormState(c?: Cliente): FormState {
 
 const nullIfEmpty = (v: string) => v.trim() === '' ? null : v.trim()
 
-const inputCls  = "w-full border border-[#e2dfd8] bg-white px-3 py-2 text-sm text-[#1a1a18] placeholder-[#9a9a8e] focus:outline-none focus:border-[#1a1a18] transition-colors font-mono"
-const selectCls = "w-full border border-[#e2dfd8] bg-white px-3 py-2 text-sm text-[#1a1a18] focus:outline-none focus:border-[#1a1a18] transition-colors"
-const labelCls  = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e] mb-1.5"
+const inputCls  = "w-full border border-[#e8e8e8] bg-white px-3 py-2 text-sm text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors font-mono"
+const selectCls = "w-full border border-[#e8e8e8] bg-white px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[#000000] transition-colors"
+const labelCls  = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
 
 export default function ClienteForm({ cliente }: Props) {
   const [form, setForm]         = useState<FormState>(toFormState(cliente))
@@ -100,11 +100,11 @@ export default function ClienteForm({ cliente }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-10 max-w-3xl">
+    <form onSubmit={handleSubmit} className="space-y-10">
 
       {/* GENERAL */}
       <section className="space-y-5">
-        <div className="flex items-baseline gap-3 pb-3 border-b-2 border-[#1a1a18]">
+        <div className="flex items-baseline gap-3 pb-3 border-b-2 border-[#000000]">
           <h2 className="font-display text-lg font-bold">General</h2>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -134,8 +134,8 @@ export default function ClienteForm({ cliente }: Props) {
             { key: 'alertas_activas' as const, label: 'Alertas activas' },
             { key: 'gads_via_mcc'    as const, label: 'Google Ads vía MCC' },
           ].map(({ key, label }) => (
-            <label key={key} className="flex items-center gap-2 text-sm text-[#4a4a42] cursor-pointer">
-              <input type="checkbox" checked={form[key] as boolean} onChange={set(key)} className="accent-[#e8321a]" />
+            <label key={key} className="flex items-center gap-2 text-sm text-[#555555] cursor-pointer">
+              <input type="checkbox" checked={form[key] as boolean} onChange={set(key)} className="accent-[#F7415C]" />
               {label}
             </label>
           ))}
@@ -143,16 +143,16 @@ export default function ClienteForm({ cliente }: Props) {
         <div>
           <label className={labelCls}>Notas internas</label>
           <textarea value={form.notas} onChange={set('notas')} rows={3} placeholder="Notas internas..."
-            className="w-full border border-[#e2dfd8] bg-white px-3 py-2 text-sm text-[#1a1a18] placeholder-[#9a9a8e] focus:outline-none focus:border-[#1a1a18] transition-colors resize-none" />
+            className="w-full border border-[#e8e8e8] bg-white px-3 py-2 text-sm text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors resize-none" />
         </div>
       </section>
 
       {/* GOOGLE */}
       <section className="space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b-2 border-[#1a1a18]">
+        <div className="flex items-center justify-between pb-3 border-b-2 border-[#000000]">
           <h2 className="font-display text-lg font-bold">Google</h2>
           {googleOk === false && (
-            <a href="/config" className="font-mono text-[9px] uppercase tracking-wide text-[#e8321a] hover:underline">
+            <a href="/config" className="font-mono text-[9px] uppercase tracking-wide text-[#F7415C] hover:underline">
               Conectar Google primero →
             </a>
           )}
@@ -160,7 +160,7 @@ export default function ClienteForm({ cliente }: Props) {
             <span className="font-mono text-[9px] uppercase tracking-wide text-[#1a7a4a]">✓ Cuenta conectada</span>
           )}
           {googleOk === null && (
-            <span className="font-mono text-[9px] uppercase tracking-wide text-[#9a9a8e]">Cargando propiedades…</span>
+            <span className="font-mono text-[9px] uppercase tracking-wide text-[#888888]">Cargando propiedades…</span>
           )}
         </div>
 
@@ -183,7 +183,7 @@ export default function ClienteForm({ cliente }: Props) {
                 className={inputCls} />
             )}
             {ga4ApiError && (
-              <p className="mt-1.5 font-mono text-[9px] text-[#e8321a]">
+              <p className="mt-1.5 font-mono text-[9px] text-[#F7415C]">
                 API no disponible — habilita &ldquo;Google Analytics Admin API&rdquo; en{' '}
                 <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com"
                    target="_blank" rel="noreferrer" className="underline">GCP Console</a>
@@ -233,7 +233,7 @@ export default function ClienteForm({ cliente }: Props) {
 
       {/* META */}
       <section className="space-y-5">
-        <div className="pb-3 border-b-2 border-[#1a1a18]">
+        <div className="pb-3 border-b-2 border-[#000000]">
           <h2 className="font-display text-lg font-bold">Meta</h2>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -250,7 +250,7 @@ export default function ClienteForm({ cliente }: Props) {
 
       {/* sGTM */}
       <section className="space-y-5">
-        <div className="pb-3 border-b-2 border-[#1a1a18]">
+        <div className="pb-3 border-b-2 border-[#000000]">
           <h2 className="font-display text-lg font-bold">sGTM / Google Cloud</h2>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -270,18 +270,18 @@ export default function ClienteForm({ cliente }: Props) {
       </section>
 
       {error && (
-        <div className="bg-[#fef0ed] border border-[#e8321a] border-l-4 border-l-[#e8321a] px-4 py-3">
-          <p className="font-mono text-xs text-[#e8321a]">{error}</p>
+        <div className="bg-[#fff0f2] border border-[#F7415C] border-l-4 border-l-[#F7415C] px-4 py-3">
+          <p className="font-mono text-xs text-[#F7415C]">{error}</p>
         </div>
       )}
 
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={loading}
-          className="font-mono text-[10px] uppercase tracking-wide bg-[#1a1a18] text-white px-6 py-2.5 hover:bg-[#e8321a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+          className="font-mono text-[10px] uppercase tracking-wide bg-[#000000] text-white px-6 py-2.5 hover:bg-[#F7415C] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           {loading ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear cliente'}
         </button>
         <button type="button" onClick={() => router.back()}
-          className="font-mono text-[10px] uppercase tracking-wide text-[#9a9a8e] hover:text-[#1a1a18] border border-[#e2dfd8] hover:border-[#1a1a18] px-6 py-2.5 transition-colors">
+          className="font-mono text-[10px] uppercase tracking-wide text-[#888888] hover:text-[#000000] border border-[#e8e8e8] hover:border-[#000000] px-6 py-2.5 transition-colors">
           Cancelar
         </button>
       </div>

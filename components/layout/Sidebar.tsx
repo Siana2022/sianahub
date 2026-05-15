@@ -26,12 +26,12 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-52 min-h-screen bg-[#1a1a18] flex flex-col shrink-0">
+    <aside className="w-52 min-h-screen bg-[#000000] flex flex-col shrink-0">
       {/* Logo */}
       <div className="px-5 py-6 border-b border-white/10">
         <p className="font-mono text-[9px] tracking-[3px] uppercase text-white/30 mb-1">Sistema</p>
         <p className="font-display text-xl font-bold text-white leading-none">
-          Siana<span className="text-[#e8321a]">Hub</span>
+          Siana<span className="text-[#F7415C]">Hub</span>
         </p>
       </div>
 

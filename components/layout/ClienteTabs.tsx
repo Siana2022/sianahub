@@ -21,7 +21,7 @@ export default function ClienteTabs({ clienteId }: { clienteId: string }) {
   const base = `/clientes/${clienteId}`
 
   return (
-    <div className="bg-white border-b border-[#e2dfd8] px-8 overflow-x-auto">
+    <div className="bg-white border-b border-[#e8e8e8] px-8 overflow-x-auto">
       <nav className="flex -mb-px whitespace-nowrap">
         {tabs.map(tab => {
           const href = `${base}${tab.href}`
@@ -34,8 +34,8 @@ export default function ClienteTabs({ clienteId }: { clienteId: string }) {
               href={href}
               className={`px-4 py-3.5 font-mono text-[10px] tracking-[1.5px] uppercase border-b-2 transition-colors shrink-0 ${
                 active
-                  ? 'border-[#e8321a] text-[#e8321a]'
-                  : 'border-transparent text-[#9a9a8e] hover:text-[#1a1a18]'
+                  ? 'border-[#F7415C] text-[#F7415C]'
+                  : 'border-transparent text-[#888888] hover:text-[#000000]'
               }`}
             >
               {tab.label}

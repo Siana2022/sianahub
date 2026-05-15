@@ -19,33 +19,33 @@ export default function MetricGroupSection({ grupo, metrics }: Props) {
     <div>
       {/* Group header */}
       <div className="flex items-center gap-3 mb-4">
-        <span className="font-mono text-[9px] tracking-[2px] uppercase text-[#9a9a8e]">{grupo}</span>
-        <div className="flex-1 h-px bg-[#e2dfd8]" />
-        <span className="bg-[#1a1a18] text-white font-mono text-[8px] px-1.5 py-0.5 tracking-wide uppercase">
+        <span className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">{grupo}</span>
+        <div className="flex-1 h-px bg-[#e8e8e8]" />
+        <span className="bg-[#000000] text-white font-mono text-[8px] px-1.5 py-0.5 tracking-wide uppercase">
           custom
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-[#e2dfd8] border border-[#e2dfd8]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-[#e8e8e8] border border-[#e8e8e8]">
         {metrics.map(({ definition: def, current, prev, daily }) => {
           const d = delta(current, prev)
           const good = d !== null && (def.invertir_colores ? d < 0 : d >= 0)
           const bad  = d !== null && (def.invertir_colores ? d >= 0 : d < 0)
-          const color = def.invertir_colores ? '#e8321a' : '#e8321a'
+          const color = def.invertir_colores ? '#F7415C' : '#F7415C'
 
           const deltaClass = good
-            ? 'bg-[#edf7f2] text-[#1a7a4a]'
+            ? 'bg-[#edfaf2] text-[#1a7a4a]'
             : bad
-            ? 'bg-[#fef0ed] text-[#e8321a]'
+            ? 'bg-[#fff0f2] text-[#F7415C]'
             : 'bg-[#fef8ed] text-[#d4820a]'
 
           return (
             <div key={def.id} className="bg-white p-4 space-y-2">
-              <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">
+              <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888]">
                 {def.nombre_visible}
               </p>
               <div className="flex items-end justify-between gap-2">
-                <p className="font-display text-2xl font-black text-[#1a1a18] leading-none">
+                <p className="font-display text-2xl font-black text-[#000000] leading-none">
                   {formatMetricValue(current, def.unidad)}
                 </p>
                 {d !== null && (
@@ -79,12 +79,12 @@ export default function MetricGroupSection({ grupo, metrics }: Props) {
               </div>
 
               {def.tipo === 'formula' && def.formula && (
-                <p className="font-mono text-[9px] text-[#9a9a8e] truncate" title={formulaToString(def.formula)}>
+                <p className="font-mono text-[9px] text-[#888888] truncate" title={formulaToString(def.formula)}>
                   {formulaToString(def.formula)}
                 </p>
               )}
               {def.tipo === 'event_count' && def.event_name && (
-                <p className="font-mono text-[9px] text-[#9a9a8e] truncate">
+                <p className="font-mono text-[9px] text-[#888888] truncate">
                   {def.event_name}
                 </p>
               )}

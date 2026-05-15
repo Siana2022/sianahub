@@ -26,18 +26,18 @@ export default function KpiCard({ label, value, prev, delta, invertColors = fals
   const bad  = invertColors ? isPositive : isNegative
 
   const deltaClass = good
-    ? 'bg-[#edf7f2] text-[#1a7a4a]'
+    ? 'bg-[#edfaf2] text-[#1a7a4a]'
     : bad
-    ? 'bg-[#fef0ed] text-[#e8321a]'
+    ? 'bg-[#fff0f2] text-[#F7415C]'
     : 'bg-[#fef8ed] text-[#d4820a]'
 
   return (
-    <div className={`p-5 ${highlight ? 'bg-[#1a1a18]' : 'bg-white'}`}>
-      <p className={`font-mono text-[9px] tracking-[2px] uppercase mb-2 ${highlight ? 'text-white/40' : 'text-[#9a9a8e]'}`}>
+    <div className={`p-5 ${highlight ? 'bg-[#000000]' : 'bg-white'}`}>
+      <p className={`font-mono text-[9px] tracking-[2px] uppercase mb-2 ${highlight ? 'text-white/40' : 'text-[#888888]'}`}>
         {label}
       </p>
       <p className={`font-display text-[32px] font-black leading-none ${
-        accent ? 'text-[#e8321a]' : highlight ? 'text-white' : 'text-[#1a1a18]'
+        accent ? 'text-[#F7415C]' : highlight ? 'text-white' : 'text-[#000000]'
       }`}>
         {typeof value === 'number' ? value.toLocaleString('es-ES') : value}
       </p>
