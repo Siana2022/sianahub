@@ -1,0 +1,83 @@
+import { createClient } from '@/lib/supabase/server'
+import { NextRequest } from 'next/server'
+import { z } from 'zod'
+
+const updateSchema = z.object({
+  nombre: z.string().min(1).optional(),
+  dominio: z.string().optional().nullable(),
+  logo_url: z.string().optional().nullable(),
+  account_manager_id: z.string().uuid().optional().nullable(),
+  estado: z.enum(['active', 'paused', 'churned']).optional(),
+  notas: z.string().optional().nullable(),
+  slack_channel_id: z.string().optional().nullable(),
+  alertas_activas: z.boolean().optional(),
+  ga4_property_id: z.string().optional().nullable(),
+  ga4_account_id: z.string().optional().nullable(),
+  gads_customer_id: z.string().optional().nullable(),
+  gads_via_mcc: z.boolean().optional(),
+  gsc_site_url: z.string().optional().nullable(),
+  gtm_account_id: z.string().optional().nullable(),
+  gtm_container_id: z.string().optional().nullable(),
+  meta_ad_account_id: z.string().optional().nullable(),
+  meta_pixel_id: z.string().optional().nullable(),
+  sgtm_url: z.string().optional().nullable(),
+  sgtm_service_name: z.string().optional().nullable(),
+  gcp_project_id: z.string().optional().nullable(),
+})
+
+export async function GET(
+  _req: NextRequest,
+  ctx: RouteContext<'/api/clientes/[clienteId]'>
+) {
+  const { clienteId } = await ctx.params
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('*')
+    .eq('id', clienteId)
+    .single()
+
+  if (error) return Response.json({ error: error.message }, { status: 404 })
+  return Response.json(data)
+}
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: RouteContext<'/api/clientes/[clienteId]'>
+) {
+  const { clienteId } = await ctx.params
+  const supabase = await createClient()
+  const body = await req.json()
+
+  const parsed = updateSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .update(parsed.data)
+    .eq('id', clienteId)
+    .select()
+    .single()
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data)
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  ctx: RouteContext<'/api/clientes/[clienteId]'>
+) {
+  const { clienteId } = await ctx.params
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('clientes')
+    .update({ estado: 'churned' })
+    .eq('id', clienteId)
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return new Response(null, { status: 204 })
+}
