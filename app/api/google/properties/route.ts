@@ -20,16 +20,24 @@ export async function GET() {
     const [ga4Data, gscData] = await Promise.all([ga4Res.json(), gscRes.json()])
 
     // Flatten GA4 accounts → properties
-    const ga4Properties = (ga4Data.accountSummaries ?? []).flatMap((account: {
-      displayName: string
-      propertySummaries?: { property: string; displayName: string }[]
-    }) =>
-      (account.propertySummaries ?? []).map((prop) => ({
-        id:      prop.property,           // e.g. "properties/123456789"
-        name:    prop.displayName,
-        account: account.displayName,
-      }))
-    )
+    let ga4Properties: { id: string; name: string; account: string }[] = []
+    let ga4Error: string | null = null
+
+    if (!ga4Res.ok) {
+      ga4Error = ga4Data.error?.message ?? ga4Data.error ?? 'Error cargando propiedades GA4'
+      console.error('GA4 Admin API error:', JSON.stringify(ga4Data))
+    } else {
+      ga4Properties = (ga4Data.accountSummaries ?? []).flatMap((account: {
+        displayName: string
+        propertySummaries?: { property: string; displayName: string }[]
+      }) =>
+        (account.propertySummaries ?? []).map((prop) => ({
+          id:      prop.property,
+          name:    prop.displayName,
+          account: account.displayName,
+        }))
+      )
+    }
 
     // GSC sites
     const gscSites = (gscData.siteEntry ?? []).map((site: {
@@ -40,7 +48,7 @@ export async function GET() {
       permission: site.permissionLevel,
     }))
 
-    return NextResponse.json({ ga4Properties, gscSites })
+    return NextResponse.json({ ga4Properties, ga4Error, gscSites })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
     return NextResponse.json({ error: message }, { status: 500 })

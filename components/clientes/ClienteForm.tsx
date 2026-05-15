@@ -45,6 +45,7 @@ export default function ClienteForm({ cliente }: Props) {
   const [ga4Props, setGa4Props] = useState<GA4Property[]>([])
   const [gscSites, setGscSites] = useState<GSCSite[]>([])
   const [googleOk, setGoogleOk] = useState<boolean | null>(null)
+  const [ga4ApiError, setGa4ApiError] = useState<string | null>(null)
   const router = useRouter()
   const isEdit = !!cliente
 
@@ -56,6 +57,7 @@ export default function ClienteForm({ cliente }: Props) {
         if (data.error) { setGoogleOk(false); return }
         setGa4Props(data.ga4Properties ?? [])
         setGscSites(data.gscSites ?? [])
+        setGa4ApiError(data.ga4Error ?? null)
         setGoogleOk(true)
       })
       .catch(() => setGoogleOk(false))
@@ -179,6 +181,15 @@ export default function ClienteForm({ cliente }: Props) {
               <input value={form.ga4_property_id} onChange={set('ga4_property_id')}
                 placeholder={googleOk === null ? 'Cargando...' : 'properties/123456789'}
                 className={inputCls} />
+            )}
+            {ga4ApiError && (
+              <p className="mt-1.5 font-mono text-[9px] text-[#e8321a]">
+                API no disponible — habilita &ldquo;Google Analytics Admin API&rdquo; en{' '}
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com"
+                   target="_blank" rel="noreferrer" className="underline">GCP Console</a>
+                {' '}y vuelve a conectar Google en{' '}
+                <a href="/config" className="underline">Configuración</a>.
+              </p>
             )}
           </div>
 
