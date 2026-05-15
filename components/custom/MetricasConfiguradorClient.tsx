@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react'
-import type { MetricDefinition, FormulaNode } from '@/lib/mock/custom'
+import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react'
+import type { MetricDefinition } from '@/lib/mock/custom'
 import { formulaToString } from '@/lib/mock/custom'
 import MetricaFormModal from './MetricaFormModal'
 
@@ -21,9 +21,7 @@ export default function MetricasConfiguradorClient({ clienteId, initialDefinitio
   const groups = [...new Set(definitions.map(d => d.grupo))]
 
   function toggleActive(id: string) {
-    setDefinitions(prev =>
-      prev.map(d => (d.id === id ? { ...d, activa: !d.activa } : d))
-    )
+    setDefinitions(prev => prev.map(d => d.id === id ? { ...d, activa: !d.activa } : d))
   }
 
   function remove(id: string) {
@@ -33,11 +31,7 @@ export default function MetricasConfiguradorClient({ clienteId, initialDefinitio
   function save(def: MetricDefinition) {
     setDefinitions(prev => {
       const idx = prev.findIndex(d => d.id === def.id)
-      if (idx >= 0) {
-        const next = [...prev]
-        next[idx] = def
-        return next
-      }
+      if (idx >= 0) { const next = [...prev]; next[idx] = def; return next }
       return [...prev, def]
     })
     setEditing(null)
@@ -46,67 +40,51 @@ export default function MetricasConfiguradorClient({ clienteId, initialDefinitio
 
   return (
     <div className="space-y-6">
-      {/* Group list */}
       {groups.map(grupo => {
         const items = definitions.filter(d => d.grupo === grupo).sort((a, b) => a.orden - b.orden)
         return (
-          <div key={grupo} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-800 bg-gray-800/40">
-              <h3 className="text-sm font-medium text-white">{grupo}</h3>
+          <div key={grupo} className="bg-white border border-[#e2dfd8] overflow-hidden">
+            <div className="px-5 py-3 border-b border-[#e2dfd8] bg-[#f7f5f0]">
+              <h3 className="font-mono text-[9px] tracking-[2px] uppercase text-[#9a9a8e]">{grupo}</h3>
             </div>
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y divide-[#e2dfd8]">
               {items.map(def => (
-                <div
-                  key={def.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${!def.activa ? 'opacity-40' : ''}`}
-                >
-                  <GripVertical size={14} className="text-gray-600 shrink-0 cursor-grab" />
-
+                <div key={def.id} className={`flex items-center gap-3 px-5 py-3 ${!def.activa ? 'opacity-40' : ''}`}>
+                  <GripVertical size={13} className="text-[#e2dfd8] shrink-0 cursor-grab" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium">{def.nombre_visible}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-medium text-[#1a1a18]">{def.nombre_visible}</span>
+                      <span className="font-mono text-[9px] px-1.5 py-0.5 bg-[#f7f5f0] text-[#9a9a8e] border border-[#e2dfd8]">
                         {UNIDAD_LABELS[def.unidad]}
                       </span>
                       {def.tipo === 'formula' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                          fórmula
-                        </span>
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 bg-[#fef0ed] text-[#e8321a]">fórmula</span>
                       )}
                       {def.tipo === 'event_count' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                          evento
-                        </span>
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 bg-[#edf2fc] text-[#1a4fa0]">evento</span>
                       )}
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                    <p className="font-mono text-[10px] text-[#9a9a8e] truncate">
                       {def.tipo === 'formula' && def.formula
                         ? formulaToString(def.formula)
                         : `GA4: ${def.event_name}`}
                     </p>
                   </div>
-
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => toggleActive(def.id)}
-                      className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                      className={`font-mono text-[9px] uppercase tracking-wide px-2 py-0.5 border transition-colors ${
                         def.activa
-                          ? 'border-green-700 text-green-400 hover:border-green-500'
-                          : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                          ? 'border-[#1a7a4a] text-[#1a7a4a]'
+                          : 'border-[#e2dfd8] text-[#9a9a8e]'
                       }`}
                     >
                       {def.activa ? 'Activa' : 'Inactiva'}
                     </button>
-                    <button
-                      onClick={() => setEditing(def)}
-                      className="p-1.5 text-gray-500 hover:text-white transition-colors"
-                    >
+                    <button onClick={() => setEditing(def)} className="p-1 text-[#9a9a8e] hover:text-[#1a1a18] transition-colors">
                       <Pencil size={13} />
                     </button>
-                    <button
-                      onClick={() => remove(def.id)}
-                      className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
-                    >
+                    <button onClick={() => remove(def.id)} className="p-1 text-[#9a9a8e] hover:text-[#e8321a] transition-colors">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -117,16 +95,14 @@ export default function MetricasConfiguradorClient({ clienteId, initialDefinitio
         )
       })}
 
-      {/* Add button */}
       <button
         onClick={() => setCreating(true)}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white border border-dashed border-gray-700 hover:border-gray-500 w-full justify-center py-3 rounded-lg transition-colors"
+        className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[1.5px] text-[#9a9a8e] hover:text-[#1a1a18] border border-dashed border-[#e2dfd8] hover:border-[#9a9a8e] w-full justify-center py-3 transition-colors"
       >
-        <Plus size={14} />
+        <Plus size={13} />
         Añadir métrica
       </button>
 
-      {/* Modal */}
       {(editing || creating) && (
         <MetricaFormModal
           initial={editing ?? undefined}

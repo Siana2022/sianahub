@@ -1,56 +1,68 @@
+'use client'
+
 import KpiCard from '@/components/dashboard/KpiCard'
 import LineChart from '@/components/charts/LineChart'
 import { mockGA4Summary, mockTopPages } from '@/lib/mock/metricas'
 
 export default function TraficoPage() {
-  const ga4 = mockGA4Summary()
+  const ga4   = mockGA4Summary()
   const pages = mockTopPages()
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Sesiones" value={ga4.sessions} prev={ga4.sessions_prev} />
-        <KpiCard label="Usuarios" value={ga4.users} prev={ga4.users_prev} />
-        <KpiCard label="Rebote" value={`${ga4.bounce_rate.toFixed(1)}%`} invertColors />
+    <div className="p-8 space-y-8 max-w-5xl">
+      {/* Section header */}
+      <div className="flex items-baseline gap-4 pb-4 border-b-2 border-[#1a1a18]">
+        <h2 className="font-display text-2xl font-bold">Tráfico web</h2>
+        <span className="font-mono text-[10px] tracking-[2px] uppercase text-[#9a9a8e]">últimos 30 días</span>
+      </div>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#e2dfd8] border border-[#e2dfd8]">
+        <KpiCard label="Sesiones"      value={ga4.sessions}  prev={ga4.sessions_prev} />
+        <KpiCard label="Usuarios"      value={ga4.users}     prev={ga4.users_prev} />
+        <KpiCard label="Tasa rebote"   value={`${ga4.bounce_rate.toFixed(1)}%`} invertColors />
         <KpiCard label="Duración media" value={`${Math.round(ga4.avg_session_duration)}s`} />
       </div>
 
-      <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-        <h3 className="text-white text-sm font-medium mb-4">Sesiones y usuarios — últimos 30 días</h3>
+      {/* Chart */}
+      <div className="bg-white border border-[#e2dfd8] p-6">
+        <h3 className="font-display text-base font-bold mb-1">Sesiones y usuarios</h3>
+        <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e] mb-5">evolución diaria — 30 días</p>
         <LineChart
           data={ga4.daily}
           series={[
-            { key: 'sessions', label: 'Sesiones', color: '#3b82f6' },
-            { key: 'users', label: 'Usuarios', color: '#10b981' },
-            { key: 'new_users', label: 'Nuevos', color: '#f59e0b' },
+            { key: 'sessions',  label: 'Sesiones',  color: '#1a4fa0' },
+            { key: 'users',     label: 'Usuarios',  color: '#1a7a4a' },
+            { key: 'new_users', label: 'Nuevos',    color: '#d4820a' },
           ]}
-          height={280}
+          height={260}
         />
       </div>
 
-      <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-800">
-          <h3 className="text-white text-sm font-medium">Top páginas</h3>
+      {/* Table */}
+      <div className="bg-white border border-[#e2dfd8] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#e2dfd8]">
+          <h3 className="font-display text-base font-bold">Top páginas</h3>
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-800">
-              <th className="text-left px-4 py-2.5 text-gray-400 text-xs font-medium">Página</th>
-              <th className="text-right px-4 py-2.5 text-gray-400 text-xs font-medium">Sesiones</th>
-              <th className="text-right px-4 py-2.5 text-gray-400 text-xs font-medium">Usuarios</th>
-              <th className="text-right px-4 py-2.5 text-gray-400 text-xs font-medium">Conversiones</th>
-              <th className="text-right px-4 py-2.5 text-gray-400 text-xs font-medium">Conv. rate</th>
+            <tr className="bg-[#f7f5f0]">
+              <th className="text-left px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">Página</th>
+              <th className="text-right px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">Sesiones</th>
+              <th className="text-right px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">Usuarios</th>
+              <th className="text-right px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">Conv.</th>
+              <th className="text-right px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#9a9a8e]">Conv. rate</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-800">
+          <tbody className="divide-y divide-[#e2dfd8]">
             {pages.map(p => (
-              <tr key={p.page_path} className="hover:bg-gray-800/40">
-                <td className="px-4 py-2.5 text-blue-400 font-mono text-xs">{p.page_path}</td>
-                <td className="px-4 py-2.5 text-white text-right">{p.sessions.toLocaleString()}</td>
-                <td className="px-4 py-2.5 text-gray-300 text-right">{p.users.toLocaleString()}</td>
-                <td className="px-4 py-2.5 text-white text-right">{p.conversions}</td>
-                <td className="px-4 py-2.5 text-right">
-                  <span className={p.conversion_rate > 3 ? 'text-green-400' : 'text-gray-400'}>
+              <tr key={p.page_path} className="hover:bg-[#f7f5f0] transition-colors">
+                <td className="px-6 py-2.5 font-mono text-xs text-[#1a4fa0]">{p.page_path}</td>
+                <td className="px-6 py-2.5 font-mono text-xs text-right text-[#1a1a18] font-medium">{p.sessions.toLocaleString()}</td>
+                <td className="px-6 py-2.5 font-mono text-xs text-right text-[#4a4a42]">{p.users.toLocaleString()}</td>
+                <td className="px-6 py-2.5 font-mono text-xs text-right text-[#1a1a18]">{p.conversions}</td>
+                <td className="px-6 py-2.5 text-right">
+                  <span className={`font-mono text-xs ${p.conversion_rate > 3 ? 'text-[#1a7a4a]' : 'text-[#9a9a8e]'}`}>
                     {p.conversion_rate.toFixed(1)}%
                   </span>
                 </td>

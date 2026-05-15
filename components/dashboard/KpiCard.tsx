@@ -1,13 +1,11 @@
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-
 interface Props {
   label: string
   value: string | number
   prev?: string | number
   delta?: number
-  prefix?: string
-  suffix?: string
   invertColors?: boolean
+  highlight?: boolean
+  accent?: boolean
 }
 
 function deltaPct(current: number, prev: number) {
@@ -15,36 +13,39 @@ function deltaPct(current: number, prev: number) {
   return ((current - prev) / Math.abs(prev)) * 100
 }
 
-export default function KpiCard({ label, value, prev, delta, prefix = '', suffix = '', invertColors = false }: Props) {
+export default function KpiCard({ label, value, prev, delta, invertColors = false, highlight = false, accent = false }: Props) {
   const pct = delta !== undefined
     ? delta
     : (prev !== undefined ? deltaPct(Number(value), Number(prev)) : undefined)
 
   const isPositive = pct !== undefined && pct > 0
   const isNegative = pct !== undefined && pct < 0
-  const isNeutral = pct === undefined || pct === 0
 
-  // invertColors: para métricas donde bajar es bueno (CPL, CPC, bounce rate)
-  const colorPositive = invertColors ? 'text-red-400' : 'text-green-400'
-  const colorNegative = invertColors ? 'text-green-400' : 'text-red-400'
+  // invertColors: CPL, CPC, bounce — down is good
+  const good = invertColors ? isNegative : isPositive
+  const bad  = invertColors ? isPositive : isNegative
+
+  const deltaClass = good
+    ? 'bg-[#edf7f2] text-[#1a7a4a]'
+    : bad
+    ? 'bg-[#fef0ed] text-[#e8321a]'
+    : 'bg-[#fef8ed] text-[#d4820a]'
 
   return (
-    <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-      <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-white text-2xl font-bold">
-        {prefix}{typeof value === 'number' ? value.toLocaleString('es-ES') : value}{suffix}
+    <div className={`p-5 ${highlight ? 'bg-[#1a1a18]' : 'bg-white'}`}>
+      <p className={`font-mono text-[9px] tracking-[2px] uppercase mb-2 ${highlight ? 'text-white/40' : 'text-[#9a9a8e]'}`}>
+        {label}
       </p>
-      {pct !== undefined && !isNeutral && (
-        <div className={`flex items-center gap-1 mt-1.5 text-xs ${isPositive ? colorPositive : colorNegative}`}>
-          {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          <span>{isPositive ? '+' : ''}{pct.toFixed(1)}% vs mes anterior</span>
-        </div>
-      )}
-      {isNeutral && pct === 0 && (
-        <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-500">
-          <Minus className="w-3 h-3" />
-          <span>Sin cambios</span>
-        </div>
+      <p className={`font-display text-[32px] font-black leading-none ${
+        accent ? 'text-[#e8321a]' : highlight ? 'text-white' : 'text-[#1a1a18]'
+      }`}>
+        {typeof value === 'number' ? value.toLocaleString('es-ES') : value}
+      </p>
+      {pct !== undefined && (
+        <span className={`inline-flex items-center gap-1 mt-2 font-mono text-[10px] font-medium px-1.5 py-0.5 rounded-sm ${deltaClass}`}>
+          {isPositive ? '▲' : isNegative ? '▼' : '—'}
+          {Math.abs(pct).toFixed(1)}%
+        </span>
       )}
     </div>
   )
