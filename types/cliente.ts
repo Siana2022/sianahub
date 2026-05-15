@@ -11,6 +11,7 @@ export interface Cliente {
   ga4_property_id: string | null
   ga4_account_id: string | null
   gads_customer_id: string | null
+  ga4_conversion_events: string | null
   gads_via_mcc: boolean
   gsc_site_url: string | null
   gtm_account_id: string | null

@@ -10,6 +10,7 @@ interface FormState {
   nombre: string; dominio: string; estado: 'active' | 'paused' | 'churned'
   notas: string; alertas_activas: boolean; gads_via_mcc: boolean
   ga4_property_id: string; ga4_account_id: string; gads_customer_id: string
+  ga4_conversion_events: string
   gsc_site_url: string; gtm_account_id: string; gtm_container_id: string
   meta_ad_account_id: string; meta_pixel_id: string
   sgtm_url: string; sgtm_service_name: string; gcp_project_id: string; slack_channel_id: string
@@ -24,6 +25,7 @@ function toFormState(c?: Cliente): FormState {
     estado: c?.estado ?? 'active', notas: c?.notas ?? '',
     alertas_activas: c?.alertas_activas ?? true, gads_via_mcc: c?.gads_via_mcc ?? true,
     ga4_property_id: c?.ga4_property_id ?? '', ga4_account_id: c?.ga4_account_id ?? '',
+    ga4_conversion_events: c?.ga4_conversion_events ?? '',
     gads_customer_id: c?.gads_customer_id ?? '', gsc_site_url: c?.gsc_site_url ?? '',
     gtm_account_id: c?.gtm_account_id ?? '', gtm_container_id: c?.gtm_container_id ?? '',
     meta_ad_account_id: c?.meta_ad_account_id ?? '', meta_pixel_id: c?.meta_pixel_id ?? '',
@@ -78,6 +80,7 @@ export default function ClienteForm({ cliente }: Props) {
       estado: form.estado, notas: nullIfEmpty(form.notas),
       alertas_activas: form.alertas_activas, gads_via_mcc: form.gads_via_mcc,
       ga4_property_id: nullIfEmpty(form.ga4_property_id), ga4_account_id: nullIfEmpty(form.ga4_account_id),
+      ga4_conversion_events: nullIfEmpty(form.ga4_conversion_events),
       gads_customer_id: nullIfEmpty(form.gads_customer_id), gsc_site_url: nullIfEmpty(form.gsc_site_url),
       gtm_account_id: nullIfEmpty(form.gtm_account_id), gtm_container_id: nullIfEmpty(form.gtm_container_id),
       meta_ad_account_id: nullIfEmpty(form.meta_ad_account_id), meta_pixel_id: nullIfEmpty(form.meta_pixel_id),
@@ -227,6 +230,13 @@ export default function ClienteForm({ cliente }: Props) {
           <div>
             <label className={labelCls}>GTM Account ID</label>
             <input value={form.gtm_account_id} onChange={set('gtm_account_id')} placeholder="123456" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>Eventos de conversión GA4</label>
+            <input value={form.ga4_conversion_events} onChange={set('ga4_conversion_events')}
+              placeholder="generate_lead, purchase, form_submit"
+              className={inputCls} />
+            <p className="mt-1 font-mono text-[9px] text-[#888888]">Separados por coma. Si se deja vacío se usan las conversiones marcadas en GA4.</p>
           </div>
         </div>
       </section>

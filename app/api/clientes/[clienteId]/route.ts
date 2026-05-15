@@ -24,6 +24,7 @@ const updateSchema = z.object({
   sgtm_service_name: z.string().optional().nullable(),
   gcp_project_id: z.string().optional().nullable(),
   resumen_widgets: z.array(z.string()).optional(),
+  ga4_conversion_events: z.string().optional().nullable(),
 })
 
 export async function GET(
