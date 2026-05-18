@@ -73,11 +73,22 @@ function parseInsights(data: Record<string, string>[]): {
     return { spend: 0, impressions: 0, clicks: 0, conversions: 0, reach: 0 }
   }
   const row = data[0]
-  const conversions = Array.isArray(row.actions)
+  // Use only one action type per conversion type to avoid double-counting.
+  // Meta reports both 'lead' (Lead Ads) and 'offsite_conversion.fb_pixel_lead' (pixel)
+  // for the same event — pick whichever is present, preferring 'lead'.
+  const actions = Array.isArray(row.actions)
     ? (row.actions as { action_type: string; value: string }[])
-        .filter(a => ['lead', 'purchase', 'complete_registration', 'offsite_conversion.fb_pixel_lead'].includes(a.action_type))
-        .reduce((sum, a) => sum + parseFloat(a.value), 0)
-    : 0
+    : []
+
+  const leadCount = actions.find(a => a.action_type === 'lead')
+  const pixelLeadCount = actions.find(a => a.action_type === 'offsite_conversion.fb_pixel_lead')
+  const purchaseCount = actions.find(a => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
+  const registrationCount = actions.find(a => a.action_type === 'complete_registration')
+
+  const conversions =
+    parseFloat(leadCount?.value ?? pixelLeadCount?.value ?? '0') +
+    parseFloat(purchaseCount?.value ?? '0') +
+    parseFloat(registrationCount?.value ?? '0')
   return {
     spend:       parseFloat(row.spend ?? '0'),
     impressions: parseInt(row.impressions ?? '0'),
