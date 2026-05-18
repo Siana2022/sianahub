@@ -99,8 +99,8 @@ export default function MetaAdsPage() {
     <div className="p-8 space-y-8">
       <div className="flex items-baseline gap-4 pb-4 border-b-2 border-[#000000]">
         <h2 className="font-display text-2xl font-bold">Meta Ads</h2>
-        <span className="font-mono text-[10px] tracking-[2px] uppercase text-[#888888]">últimos 30 días</span>
-        <span className="font-mono text-[9px] px-2 py-0.5 bg-[#f0f0f0] text-[#555555] uppercase tracking-wide">
+        <span className="font-mono text-[10px] tracking-[2px] uppercase font-bold text-[#000000]">últimos 30 días</span>
+        <span className="font-mono text-[9px] px-2 py-0.5 bg-[#F7415C] text-white uppercase tracking-wide font-bold">
           {isEcommerce ? 'ecommerce' : 'leads'}
         </span>
       </div>

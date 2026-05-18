@@ -33,7 +33,7 @@ export default function KpiCard({ label, value, prev, delta, invertColors = fals
 
   return (
     <div className={`p-5 ${highlight ? 'bg-[#000000]' : 'bg-white'}`}>
-      <p className={`font-mono text-[9px] tracking-[2px] uppercase mb-2 ${highlight ? 'text-white/40' : 'text-[#888888]'}`}>
+      <p className={`font-mono text-[11px] tracking-[1px] uppercase font-bold mb-2 ${highlight ? 'text-white/60' : 'text-[#000000]'}`}>
         {label}
       </p>
       <p className={`font-display text-[32px] font-black leading-none ${
