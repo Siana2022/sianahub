@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
 
 interface SnippetResult {
   gtm_id_found: string | null
   sgtm_url_found: string | null
+  gtm_ids_found: string[]
+  sgtm_urls_found: string[]
   gtm_id_matches: boolean | null
   sgtm_url_matches: boolean | null
   error: string | null
@@ -18,9 +20,22 @@ interface HealthResult {
   error?: string
 }
 
+interface ContaminacionItem {
+  tipo: 'gtm_id' | 'sgtm_url'
+  valor: string
+  cliente_nombre: string
+  cliente_id: string
+}
+
+interface ContaminacionResult {
+  contaminado: boolean
+  items: ContaminacionItem[]
+}
+
 interface CheckResult {
   snippet: SnippetResult
   health: HealthResult
+  contaminacion: ContaminacionResult
   alerts_created: string[]
 }
 
@@ -109,7 +124,7 @@ export default function ClienteGtmPage() {
           <div>
             <h3 className="font-display text-base font-bold">Verificación sGTM</h3>
             <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mt-0.5">
-              snippet en sitio + salud del servidor
+              snippet en sitio + salud del servidor + contaminación cruzada
             </p>
           </div>
           <button
@@ -143,9 +158,9 @@ export default function ClienteGtmPage() {
                     <StatusIcon ok={result.snippet.gtm_id_found !== null} />
                     <span className="font-mono text-[10px] text-[#555555]">
                       GTM ID detectado
-                      {result.snippet.gtm_id_found && (
+                      {result.snippet.gtm_ids_found.length > 0 && (
                         <span className="ml-2 text-[#000000] font-bold">
-                          {result.snippet.gtm_id_found}
+                          {result.snippet.gtm_ids_found.join(', ')}
                         </span>
                       )}
                     </span>
@@ -160,9 +175,9 @@ export default function ClienteGtmPage() {
                     <StatusIcon ok={result.snippet.sgtm_url_found !== null} />
                     <span className="font-mono text-[10px] text-[#555555]">
                       URL sGTM detectada
-                      {result.snippet.sgtm_url_found && (
+                      {result.snippet.sgtm_urls_found.length > 0 && (
                         <span className="ml-2 text-[#000000] font-medium break-all">
-                          {result.snippet.sgtm_url_found}
+                          {result.snippet.sgtm_urls_found.join(', ')}
                         </span>
                       )}
                     </span>
@@ -203,6 +218,54 @@ export default function ClienteGtmPage() {
               )}
             </div>
 
+            {/* Cross-contamination */}
+            <div className={`border p-4 space-y-3 ${
+              result.contaminacion.contaminado
+                ? 'border-[#F7415C]/50 bg-[#F7415C]/5'
+                : 'border-[#e8e8e8]'
+            }`}>
+              <div className="flex items-center gap-2">
+                <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">
+                  Contaminación cruzada
+                </p>
+                {result.contaminacion.contaminado && (
+                  <AlertTriangle className="w-3.5 h-3.5 text-[#F7415C]" />
+                )}
+              </div>
+
+              {result.contaminacion.contaminado ? (
+                <div className="space-y-3">
+                  <p className="font-mono text-[10px] text-[#F7415C] font-bold">
+                    ¡Contaminación detectada! Datos de otros clientes están presentes en este sitio.
+                  </p>
+                  <div className="space-y-2">
+                    {result.contaminacion.items.map((item, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-white border border-[#F7415C]/20">
+                        <XCircle className="w-4 h-4 text-[#F7415C] mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-mono text-[10px] text-[#000000] font-bold">
+                            {item.tipo === 'gtm_id' ? 'GTM ID ajeno' : 'URL sGTM ajena'}
+                            {' '}
+                            <span className="text-[#F7415C]">{item.valor}</span>
+                          </p>
+                          <p className="font-mono text-[9px] text-[#555555] mt-0.5">
+                            Pertenece al cliente: <span className="font-bold text-[#000000]">{item.cliente_nombre}</span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-4 h-4 text-[#1a7a4a]" />
+                  <span className="font-mono text-[10px] text-[#555555]">
+                    No se detectaron GTM IDs ni URLs sGTM de otros clientes
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Alerts created */}
             {result.alerts_created.length > 0 && (
               <div className="border border-[#f5c842]/40 bg-[#f5c842]/5 p-4">
@@ -218,7 +281,8 @@ export default function ClienteGtmPage() {
 
             {result.alerts_created.length === 0 &&
               !result.snippet.error &&
-              result.health.healthy && (
+              result.health.healthy &&
+              !result.contaminacion.contaminado && (
                 <div className="border border-[#1a7a4a]/30 bg-[#1a7a4a]/5 p-4">
                   <p className="font-mono text-[10px] text-[#1a7a4a]">
                     Todo correcto. No se generaron alertas.

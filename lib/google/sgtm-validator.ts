@@ -1,8 +1,12 @@
 export interface SnippetValidationResult {
+  // First found (backward compat)
   gtm_id_found: string | null
   sgtm_url_found: string | null
   gtm_id_matches: boolean | null
   sgtm_url_matches: boolean | null
+  // All found (for cross-contamination detection)
+  gtm_ids_found: string[]
+  sgtm_urls_found: string[]
   error: string | null
 }
 
@@ -10,6 +14,18 @@ export interface HealthCheckResult {
   healthy: boolean
   status: number
   error?: string
+}
+
+export interface ContaminacionItem {
+  tipo: 'gtm_id' | 'sgtm_url'
+  valor: string
+  cliente_nombre: string
+  cliente_id: string
+}
+
+export interface ContaminacionResult {
+  contaminado: boolean
+  items: ContaminacionItem[]
 }
 
 export async function validateClientSnippet(
@@ -28,6 +44,8 @@ export async function validateClientSnippet(
       return {
         gtm_id_found: null,
         sgtm_url_found: null,
+        gtm_ids_found: [],
+        sgtm_urls_found: [],
         gtm_id_matches: null,
         sgtm_url_matches: null,
         error: `HTTP ${res.status} al obtener ${url}`,
@@ -36,23 +54,26 @@ export async function validateClientSnippet(
 
     const html = await res.text()
 
-    // Match GTM container ID pattern
-    const gtmMatch = html.match(/GTM-[A-Z0-9]+/)
-    const gtm_id_found = gtmMatch ? gtmMatch[0] : null
+    // Find ALL GTM container IDs in the page
+    const gtmMatches = [...html.matchAll(/GTM-[A-Z0-9]+/g)]
+    const gtm_ids_found = [...new Set(gtmMatches.map(m => m[0]))]
+    const gtm_id_found = gtm_ids_found[0] ?? null
 
-    // Match sGTM URL — e.g. https://t.example.com/gtm.js — capture without /gtm.js
-    const sgtmMatch = html.match(/https:\/\/[a-z0-9.\-/]+\/gtm\.js/)
-    let sgtm_url_found: string | null = null
-    if (sgtmMatch) {
-      sgtm_url_found = sgtmMatch[0].replace(/\/gtm\.js$/, '')
-    }
+    // Find ALL sGTM URLs in the page (capture base URL without /gtm.js)
+    const sgtmMatches = [...html.matchAll(/https:\/\/[a-zA-Z0-9.\-]+\/gtm\.js/g)]
+    const sgtm_urls_found = [...new Set(
+      sgtmMatches.map(m => m[0].replace(/\/gtm\.js$/, ''))
+    )]
+    const sgtm_url_found = sgtm_urls_found[0] ?? null
 
-    const gtm_id_matches = expectedGtmId != null ? gtm_id_found === expectedGtmId : null
-    const sgtm_url_matches = expectedSgtmUrl != null ? sgtm_url_found === expectedSgtmUrl : null
+    const gtm_id_matches = expectedGtmId != null ? gtm_ids_found.includes(expectedGtmId) : null
+    const sgtm_url_matches = expectedSgtmUrl != null ? sgtm_urls_found.includes(expectedSgtmUrl) : null
 
     return {
       gtm_id_found,
       sgtm_url_found,
+      gtm_ids_found,
+      sgtm_urls_found,
       gtm_id_matches,
       sgtm_url_matches,
       error: null,
@@ -61,6 +82,8 @@ export async function validateClientSnippet(
     return {
       gtm_id_found: null,
       sgtm_url_found: null,
+      gtm_ids_found: [],
+      sgtm_urls_found: [],
       gtm_id_matches: null,
       sgtm_url_matches: null,
       error: err instanceof Error ? err.message : 'Error desconocido',
@@ -69,7 +92,6 @@ export async function validateClientSnippet(
 }
 
 export async function checkSgtmHealth(sgtmUrl: string, gtmId?: string | null): Promise<HealthCheckResult> {
-  // Try gtm.js endpoint first (more reliable than /healthz on most sGTM setups)
   const testUrl = gtmId
     ? `${sgtmUrl}/gtm.js?id=${gtmId}`
     : `${sgtmUrl}/gtm.js`
