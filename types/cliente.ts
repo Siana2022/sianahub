@@ -1,5 +1,15 @@
 export type TipoProyecto = 'leads' | 'ecommerce'
 
+export interface SgtmEventConfig {
+  key:    string   // GA4 event name e.g. "lead_liften"
+  label:  string   // human-readable e.g. "Liften"
+  url?:   string   // thank you page URL e.g. "https://ceivanmedical.es/gracias-liften/"
+}
+
+export interface SgtmEventsConfig {
+  events: SgtmEventConfig[]
+}
+
 export interface MetaEventsConfig {
   /** Primary conversion event for CPL/ROAS calculation (single) */
   conversion_event?: string
@@ -38,6 +48,7 @@ export interface Cliente {
   sgtm_url: string | null
   sgtm_service_name: string | null
   gcp_project_id: string | null
+  sgtm_events_config: SgtmEventsConfig | null
   created_at: string
   updated_at: string
 }

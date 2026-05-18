@@ -198,3 +198,74 @@ export async function fetchGA4Geo(propertyId: string) {
     sessions: parseInt(row.metricValues[0].value),
   }))
 }
+
+// ── sGTM events by name (custom range) ────────────────────────────────────────
+
+export async function fetchGA4EventsByName(
+  propertyId: string,
+  eventNames: string[],
+  since: string,
+  until: string
+): Promise<{ key: string; count: number; count_prev: number }[]> {
+  if (!eventNames.length) return []
+
+  // Calculate prev period
+  const s = new Date(since)
+  const u = new Date(until)
+  const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
+  const prevUntilDate = new Date(s); prevUntilDate.setDate(prevUntilDate.getDate() - 1)
+  const prevSinceDate = new Date(prevUntilDate); prevSinceDate.setDate(prevSinceDate.getDate() - days + 1)
+
+  const data = await ga4Fetch(propertyId, {
+    dateRanges: [
+      dateRange(since, until),
+      dateRange(prevSinceDate.toISOString().slice(0, 10), prevUntilDate.toISOString().slice(0, 10)),
+    ],
+    dimensions: [dim('eventName'), dim('dateRange')],
+    metrics:    [met('eventCount')],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: { values: eventNames },
+      },
+    },
+  })
+
+  // Build map: eventName → { curr, prev }
+  const map: Record<string, { curr: number; prev: number }> = {}
+  for (const name of eventNames) map[name] = { curr: 0, prev: 0 }
+
+  for (const row of data.rows ?? []) {
+    const name      = row.dimensionValues[0].value as string
+    const range     = row.dimensionValues[1].value as string   // "date_range_0" or "date_range_1"
+    const count     = parseInt(row.metricValues[0].value ?? '0')
+    if (!map[name]) map[name] = { curr: 0, prev: 0 }
+    if (range === 'date_range_0') map[name].curr += count
+    else                          map[name].prev += count
+  }
+
+  return eventNames.map(key => ({
+    key,
+    count:      map[key]?.curr ?? 0,
+    count_prev: map[key]?.prev ?? 0,
+  }))
+}
+
+// ── Detect all GA4 events (last year) for sGTM config ─────────────────────────
+
+export async function fetchGA4AllEvents(
+  propertyId: string
+): Promise<{ key: string; count: number }[]> {
+  const data = await ga4Fetch(propertyId, {
+    dateRanges: [dateRange('365daysAgo', 'today')],
+    dimensions: [dim('eventName')],
+    metrics:    [met('eventCount')],
+    orderBys:   [{ metric: { metricName: 'eventCount' }, desc: true }],
+    limit: 100,
+  })
+
+  return (data.rows ?? []).map((row: { dimensionValues: { value: string }[]; metricValues: { value: string }[] }) => ({
+    key:   row.dimensionValues[0].value,
+    count: parseInt(row.metricValues[0].value ?? '0'),
+  }))
+}

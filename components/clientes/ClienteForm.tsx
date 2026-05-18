@@ -25,6 +25,7 @@ interface FormState {
   gsc_site_url: string; gtm_account_id: string; gtm_container_id: string
   meta_ad_account_id: string; meta_pixel_id: string
   sgtm_url: string; sgtm_service_name: string; gcp_project_id: string; slack_channel_id: string
+  sgtm_events: { key: string; label: string; url: string }[]
 }
 
 // ── Meta event presets ─────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ function toFormState(c?: Cliente): FormState {
     sgtm_service_name:     c?.sgtm_service_name     ?? '',
     gcp_project_id:        c?.gcp_project_id        ?? '',
     slack_channel_id:      c?.slack_channel_id      ?? '',
+    sgtm_events: c?.sgtm_events_config?.events?.map(e => ({ key: e.key, label: e.label, url: e.url ?? '' })) ?? [],
   }
 }
 
@@ -358,6 +360,11 @@ export default function ClienteForm({ cliente }: Props) {
   const [metaEventsLoading, setMetaEventsLoading] = useState(false)
   const [metaEventsError, setMetaEventsError]     = useState<string | null>(null)
 
+  // GA4 event detection for sGTM config
+  const [ga4Events, setGa4Events]               = useState<{ key: string; count: number }[] | null>(null)
+  const [ga4EventsLoading, setGa4EventsLoading] = useState(false)
+  const [ga4EventsError, setGa4EventsError]     = useState<string | null>(null)
+
   const router = useRouter()
   const isEdit = !!cliente
 
@@ -448,6 +455,41 @@ export default function ClienteForm({ cliente }: Props) {
     })
   }
 
+  async function detectGA4Events() {
+    const propId = form.ga4_property_id.trim()
+    if (!propId) return
+    setGa4EventsLoading(true); setGa4EventsError(null)
+    try {
+      const res = await fetch(`/api/google/events?property_id=${propId}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setGa4Events(data.events ?? [])
+    } catch (e) {
+      setGa4EventsError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setGa4EventsLoading(false)
+    }
+  }
+
+  function addSgtmEvent(key: string) {
+    setForm(f => {
+      if (f.sgtm_events.some(e => e.key === key)) return f
+      return { ...f, sgtm_events: [...f.sgtm_events, { key, label: key, url: '' }] }
+    })
+  }
+
+  function removeSgtmEvent(index: number) {
+    setForm(f => ({ ...f, sgtm_events: f.sgtm_events.filter((_, i) => i !== index) }))
+  }
+
+  function updateSgtmEvent(index: number, field: 'key' | 'label' | 'url', value: string) {
+    setForm(f => {
+      const updated = [...f.sgtm_events]
+      updated[index] = { ...updated[index], [field]: value }
+      return { ...f, sgtm_events: updated }
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(null)
@@ -498,6 +540,9 @@ export default function ClienteForm({ cliente }: Props) {
       sgtm_service_name:     nullIfEmpty(form.sgtm_service_name),
       gcp_project_id:        nullIfEmpty(form.gcp_project_id),
       slack_channel_id:      nullIfEmpty(form.slack_channel_id),
+      sgtm_events_config: form.sgtm_events.length > 0
+        ? { events: form.sgtm_events.filter(e => e.key.trim()).map(e => ({ key: e.key.trim(), label: e.label.trim() || e.key.trim(), url: e.url.trim() || undefined })) }
+        : null,
     }
     const res = await fetch(isEdit ? `/api/clientes/${cliente.id}` : '/api/clientes', {
       method: isEdit ? 'PATCH' : 'POST',
@@ -739,6 +784,106 @@ export default function ClienteForm({ cliente }: Props) {
             <label className={labelCls}>GCP Project ID</label>
             <input value={form.gcp_project_id} onChange={set('gcp_project_id')} placeholder="siana-digital-prod" className={inputCls} />
           </div>
+        </div>
+
+        {/* sGTM Events Config */}
+        <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Eventos sGTM a monitorizar</p>
+              <p className="font-mono text-[9px] text-[#888888] mt-0.5">Detecta los eventos GA4 de esta propiedad y selecciona cuáles quieres ver en el informe sGTM.</p>
+            </div>
+            <button
+              type="button"
+              onClick={detectGA4Events}
+              disabled={!form.ga4_property_id.trim() || ga4EventsLoading}
+              className="font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 border border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+            >
+              {ga4EventsLoading
+                ? <><span className="inline-block w-2.5 h-2.5 border border-t-transparent rounded-full animate-spin" />Detectando…</>
+                : <>↻ Detectar eventos GA4</>}
+            </button>
+          </div>
+
+          {!form.ga4_property_id.trim() && (
+            <p className="font-mono text-[9px] text-[#888888]">Introduce el GA4 Property ID arriba para detectar los eventos reales de esta propiedad.</p>
+          )}
+          {ga4EventsError && (
+            <p className="font-mono text-[9px] text-[#F7415C]">Error: {ga4EventsError}</p>
+          )}
+
+          {ga4Events && ga4Events.length > 0 && (
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] text-[#888888] mb-2">Eventos detectados — clic para añadir</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ga4Events.map(evt => {
+                  const already = form.sgtm_events.some(e => e.key === evt.key)
+                  return (
+                    <button
+                      key={evt.key}
+                      type="button"
+                      onClick={() => addSgtmEvent(evt.key)}
+                      disabled={already}
+                      className={`font-mono text-[9px] px-2 py-1 border transition-colors ${
+                        already
+                          ? 'border-[#000000] bg-[#000000] text-white cursor-default'
+                          : 'border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000]'
+                      }`}
+                    >
+                      {evt.key}
+                      <span className="ml-1 opacity-60">{evt.count.toLocaleString('es-ES')}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {form.sgtm_events.length > 0 && (
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] text-[#888888] mb-2">Eventos configurados</p>
+              <div className="space-y-2">
+                {form.sgtm_events.map((evt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={evt.key}
+                      onChange={e => updateSgtmEvent(i, 'key', e.target.value)}
+                      placeholder="nombre_evento_ga4"
+                      className="flex-1 border border-[#e8e8e8] bg-white px-2 py-1.5 font-mono text-[10px] text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors"
+                    />
+                    <input
+                      value={evt.label}
+                      onChange={e => updateSgtmEvent(i, 'label', e.target.value)}
+                      placeholder="Nombre visible"
+                      className="flex-1 border border-[#e8e8e8] bg-white px-2 py-1.5 font-mono text-[10px] text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors"
+                    />
+                    <input
+                      value={evt.url}
+                      onChange={e => updateSgtmEvent(i, 'url', e.target.value)}
+                      placeholder="https://cliente.com/gracias/"
+                      className="flex-[2] border border-[#e8e8e8] bg-white px-2 py-1.5 font-mono text-[10px] text-[#000000] placeholder-[#888888] focus:outline-none focus:border-[#000000] transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSgtmEvent(i)}
+                      className="font-mono text-[9px] px-2 py-1.5 border border-[#e8e8e8] text-[#F7415C] hover:border-[#F7415C] transition-colors shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 font-mono text-[9px] text-[#888888]">Columnas: clave GA4 · etiqueta visible · URL página de gracias (opcional)</p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setForm(f => ({ ...f, sgtm_events: [...f.sgtm_events, { key: '', label: '', url: '' }] }))}
+            className="font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 border border-dashed border-[#e8e8e8] text-[#888888] hover:border-[#000000] hover:text-[#000000] transition-colors"
+          >
+            + Añadir evento manualmente
+          </button>
         </div>
       </section>
 

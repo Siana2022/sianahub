@@ -10,6 +10,16 @@ const metaEventsConfigSchema = z.object({
   funnel_steps:            z.array(z.string()).optional(),
 })
 
+const sgtmEventConfigSchema = z.object({
+  key:   z.string(),
+  label: z.string(),
+  url:   z.string().optional(),
+})
+
+const sgtmEventsConfigSchema = z.object({
+  events: z.array(sgtmEventConfigSchema),
+})
+
 const updateSchema = z.object({
   nombre: z.string().min(1).optional(),
   dominio: z.string().optional().nullable(),
@@ -35,6 +45,7 @@ const updateSchema = z.object({
   gcp_project_id: z.string().optional().nullable(),
   resumen_widgets: z.array(z.string()).optional(),
   ga4_conversion_events: z.string().optional().nullable(),
+  sgtm_events_config: sgtmEventsConfigSchema.optional().nullable(),
 })
 
 export async function GET(
