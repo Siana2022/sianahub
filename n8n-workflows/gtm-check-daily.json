@@ -1,0 +1,198 @@
+{
+  "name": "SianaHub — GTM check diario",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule — 08:30 diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sianahub.sianadigital.com/api/ingesta/gtm-check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-gtm-check",
+      "name": "POST /api/ingesta/gtm-check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ingesta-secret-credential",
+          "name": "SianaHub Ingesta Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-contamination",
+              "leftValue": "={{ $json.contaminados }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-contamination",
+      "name": "¿Hay contaminación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "body": {
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "C0B42SDD7SP"
+              },
+              {
+                "name": "text",
+                "value": "🚨 *CONTAMINACIÓN CRUZADA sGTM* — {{ $('POST /api/ingesta/gtm-check').item.json.contaminados }} cliente(s) afectado(s). Alertas creadas: {{ $('POST /api/ingesta/gtm-check').item.json.alertas_creadas }}. Revisa el centro de alertas en SianaHub."
+              }
+            ]
+          }
+        },
+        "options": {}
+      },
+      "id": "slack-contamination",
+      "name": "Slack — Alerta contaminación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-bot-credential",
+          "name": "Slack Bot Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-problems",
+              "leftValue": "={{ $('POST /api/ingesta/gtm-check').item.json.con_problemas }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-problems",
+      "name": "¿Hay otros problemas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "body": {
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "C0B42SDD7SP"
+              },
+              {
+                "name": "text",
+                "value": "⚠️ *GTM check* — {{ $('POST /api/ingesta/gtm-check').item.json.con_problemas }} cliente(s) con problemas de snippet o servidor sGTM. Revisa el centro de alertas."
+              }
+            ]
+          }
+        },
+        "options": {}
+      },
+      "id": "slack-problems",
+      "name": "Slack — Alerta problemas GTM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-bot-credential",
+          "name": "Slack Bot Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule — 08:30 diario": {
+      "main": [
+        [{ "node": "POST /api/ingesta/gtm-check", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /api/ingesta/gtm-check": {
+      "main": [
+        [{ "node": "¿Hay contaminación?", "type": "main", "index": 0 }]
+      ]
+    },
+    "¿Hay contaminación?": {
+      "main": [
+        [{ "node": "Slack — Alerta contaminación", "type": "main", "index": 0 }],
+        [{ "node": "¿Hay otros problemas?", "type": "main", "index": 0 }]
+      ]
+    },
+    "¿Hay otros problemas?": {
+      "main": [
+        [{ "node": "Slack — Alerta problemas GTM", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "tags": ["sianahub", "gtm"]
+}
