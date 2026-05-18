@@ -1,4 +1,5 @@
 import { getMetaToken } from './token'
+import type { MetaEventsConfig } from '@/types/cliente'
 
 const API = 'https://graph.facebook.com/v21.0'
 
@@ -16,34 +17,34 @@ async function metaFetch(path: string, params: Record<string, string> = {}) {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface MetaFunnel {
-  page_views:       number
-  view_content:     number
-  add_to_cart:      number
+  page_views:        number
+  view_content:      number
+  add_to_cart:       number
   initiate_checkout: number
-  purchases:        number
-  revenue:          number
+  purchases:         number
+  revenue:           number
 }
 
 export interface MetaSummary {
-  spend:       number
-  spend_prev:  number
-  impressions: number
-  clicks:      number
-  ctr:         number
-  cpc:         number
-  cpp:         number
-  reach:       number
-  // Leads mode
-  conversions: number
-  cpl:         number
-  cpl_prev:    number
-  // Ecommerce mode
-  roas:        number
-  revenue:     number
+  spend:        number
+  spend_prev:   number
+  impressions:  number
+  clicks:       number
+  ctr:          number
+  cpc:          number
+  cpp:          number
+  reach:        number
+  // Main conversions (driven by conversion_event config)
+  conversions:  number
+  cpl:          number       // cost per conversion
+  cpl_prev:     number
+  // Revenue / ecommerce
+  roas:         number
+  revenue:      number
   revenue_prev: number
-  purchases:   number
+  purchases:    number
   // Funnel
-  funnel:      MetaFunnel
+  funnel:       MetaFunnel
 }
 
 export interface MetaCampaign {
@@ -56,7 +57,7 @@ export interface MetaCampaign {
   clicks:      number
   ctr:         number
   cpc:         number
-  // Leads
+  // Main conversion
   conversions: number
   cpl:         number
   // Ecommerce
@@ -75,10 +76,24 @@ export interface MetaDailyRow {
   revenue:     number
 }
 
+// ── Defaults ───────────────────────────────────────────────────────────────────
+
+const DEFAULT_CONFIG: Required<MetaEventsConfig> = {
+  conversion_event: 'lead',
+  funnel_steps: ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase'],
+}
+
+function resolveConfig(config?: MetaEventsConfig): Required<MetaEventsConfig> {
+  return {
+    conversion_event: config?.conversion_event ?? DEFAULT_CONFIG.conversion_event,
+    funnel_steps:     config?.funnel_steps     ?? DEFAULT_CONFIG.funnel_steps,
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function dateRange(daysAgo: number) {
-  const end = new Date()
+  const end   = new Date()
   const start = new Date()
   start.setDate(start.getDate() - daysAgo)
   return {
@@ -107,44 +122,41 @@ function getActionValue(actionValues: ActionRow[], ...types: string[]): number {
 
 function parseInsightsFull(data: Record<string, unknown>[]): {
   spend: number; impressions: number; clicks: number; reach: number
-  leads: number; purchases: number; revenue: number
-  funnel: MetaFunnel
+  actions: ActionRow[]; actionValues: ActionRow[]
 } {
   if (!data || data.length === 0) {
-    return { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, revenue: 0, funnel: { page_views: 0, view_content: 0, add_to_cart: 0, initiate_checkout: 0, purchases: 0, revenue: 0 } }
+    return { spend: 0, impressions: 0, clicks: 0, reach: 0, actions: [], actionValues: [] }
   }
   const row = data[0]
-  const actions:      ActionRow[] = Array.isArray(row.actions)       ? (row.actions as ActionRow[])       : []
-  const actionValues: ActionRow[] = Array.isArray(row.action_values) ? (row.action_values as ActionRow[]) : []
+  return {
+    spend:        parseFloat(row.spend       as string ?? '0'),
+    impressions:  parseInt(row.impressions   as string ?? '0'),
+    clicks:       parseInt(row.clicks        as string ?? '0'),
+    reach:        parseInt(row.reach         as string ?? '0'),
+    actions:      Array.isArray(row.actions)       ? (row.actions       as ActionRow[]) : [],
+    actionValues: Array.isArray(row.action_values) ? (row.action_values as ActionRow[]) : [],
+  }
+}
 
-  const leads     = getAction(actions, 'lead', 'offsite_conversion.fb_pixel_lead')
+function buildFunnel(actions: ActionRow[], actionValues: ActionRow[]): MetaFunnel {
   const purchases = getAction(actions, 'purchase', 'offsite_conversion.fb_pixel_purchase')
-  const revenue   = getActionValue(actionValues, 'purchase', 'offsite_conversion.fb_pixel_purchase')
-
-  const funnel: MetaFunnel = {
+  return {
     page_views:        getAction(actions, 'page_view'),
     view_content:      getAction(actions, 'view_content', 'offsite_conversion.fb_pixel_view_content'),
     add_to_cart:       getAction(actions, 'add_to_cart',  'offsite_conversion.fb_pixel_add_to_cart'),
     initiate_checkout: getAction(actions, 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'),
     purchases,
-    revenue,
-  }
-
-  return {
-    spend:       parseFloat(row.spend as string ?? '0'),
-    impressions: parseInt(row.impressions as string ?? '0'),
-    clicks:      parseInt(row.clicks as string ?? '0'),
-    reach:       parseInt(row.reach as string ?? '0'),
-    leads,
-    purchases,
-    revenue,
-    funnel,
+    revenue:           getActionValue(actionValues, 'purchase', 'offsite_conversion.fb_pixel_purchase'),
   }
 }
 
 // ── API functions ──────────────────────────────────────────────────────────────
 
-export async function fetchMetaSummary(adAccountId: string): Promise<MetaSummary> {
+export async function fetchMetaSummary(
+  adAccountId: string,
+  config?: MetaEventsConfig
+): Promise<MetaSummary> {
+  const cfg    = resolveConfig(config)
   const fields = 'spend,impressions,clicks,reach,actions,action_values'
   const range30 = dateRange(30)
   const range60 = dateRange(60)
@@ -165,76 +177,104 @@ export async function fetchMetaSummary(adAccountId: string): Promise<MetaSummary
   const c = parseInsightsFull(curr.data ?? [])
   const p = parseInsightsFull(prev.data ?? [])
 
+  // Main conversions: use configured event type (with pixel fallback)
+  const conversionEvent = cfg.conversion_event
+  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
+  const convCurr = getAction(c.actions, conversionEvent, pixelFallback)
+  const convPrev = getAction(p.actions, conversionEvent, pixelFallback)
+
+  // Always extract purchases + revenue for ecommerce KPIs
+  const funnel = buildFunnel(c.actions, c.actionValues)
+
   return {
     spend:        c.spend,
     spend_prev:   p.spend,
     impressions:  c.impressions,
     clicks:       c.clicks,
     reach:        c.reach,
-    conversions:  c.leads,
-    cpl:          c.leads > 0     ? c.spend / c.leads     : 0,
-    cpl_prev:     p.leads > 0     ? p.spend / p.leads     : 0,
-    purchases:    c.purchases,
-    revenue:      c.revenue,
-    revenue_prev: p.revenue,
-    roas:         c.spend > 0     ? c.revenue / c.spend   : 0,
+    conversions:  convCurr,
+    cpl:          convCurr > 0 ? c.spend / convCurr : 0,
+    cpl_prev:     convPrev > 0 ? p.spend / convPrev : 0,
+    purchases:    funnel.purchases,
+    revenue:      funnel.revenue,
+    revenue_prev: buildFunnel(p.actions, p.actionValues).revenue,
+    roas:         c.spend > 0 ? funnel.revenue / c.spend : 0,
     ctr:          c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
-    cpc:          c.clicks > 0    ? c.spend / c.clicks    : 0,
-    cpp:          c.reach > 0     ? (c.spend / c.reach) * 1000 : 0,
-    funnel:       c.funnel,
+    cpc:          c.clicks > 0      ? c.spend / c.clicks               : 0,
+    cpp:          c.reach > 0       ? (c.spend / c.reach) * 1000       : 0,
+    funnel,
   }
 }
 
-export async function fetchMetaCampaigns(adAccountId: string): Promise<MetaCampaign[]> {
+export async function fetchMetaCampaigns(
+  adAccountId: string,
+  config?: MetaEventsConfig
+): Promise<MetaCampaign[]> {
+  const cfg   = resolveConfig(config)
   const range = dateRange(30)
-  const data = await metaFetch(`/act_${adAccountId}/campaigns`, {
-    fields: 'id,name,status,objective,insights{spend,impressions,clicks,reach,actions,action_values}',
+  const data  = await metaFetch(`/act_${adAccountId}/campaigns`, {
+    fields:     'id,name,status,objective,insights{spend,impressions,clicks,reach,actions,action_values}',
     time_range: JSON.stringify({ since: range.since, until: range.until }),
-    limit: '20',
+    limit:      '20',
   })
+
+  const conversionEvent = cfg.conversion_event
+  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
 
   return (data.data ?? []).map((c: Record<string, unknown>) => {
     const insData = (c.insights as { data: Record<string, unknown>[] })?.data ?? []
-    const ins = parseInsightsFull(insData)
+    const ins     = parseInsightsFull(insData)
+    const funnel  = buildFunnel(ins.actions, ins.actionValues)
+    const convs   = getAction(ins.actions, conversionEvent, pixelFallback)
 
     return {
-      id:          c.id as string,
-      nombre:      c.name as string,
-      estado:      c.status as string,
+      id:          c.id       as string,
+      nombre:      c.name     as string,
+      estado:      c.status   as string,
       objetivo:    c.objective as string,
       spend:       ins.spend,
       impressions: ins.impressions,
       clicks:      ins.clicks,
-      conversions: ins.leads,
-      purchases:   ins.purchases,
-      revenue:     ins.revenue,
+      conversions: convs,
+      purchases:   funnel.purchases,
+      revenue:     funnel.revenue,
       ctr:         ins.impressions > 0 ? (ins.clicks / ins.impressions) * 100 : 0,
       cpc:         ins.clicks > 0      ? ins.spend / ins.clicks               : 0,
-      cpl:         ins.leads > 0       ? ins.spend / ins.leads                : 0,
-      roas:        ins.spend > 0       ? ins.revenue / ins.spend              : 0,
+      cpl:         convs > 0           ? ins.spend / convs                    : 0,
+      roas:        ins.spend > 0       ? funnel.revenue / ins.spend           : 0,
     }
   })
 }
 
-export async function fetchMetaDaily(adAccountId: string): Promise<MetaDailyRow[]> {
+export async function fetchMetaDaily(
+  adAccountId: string,
+  config?: MetaEventsConfig
+): Promise<MetaDailyRow[]> {
+  const cfg   = resolveConfig(config)
   const range = dateRange(30)
-  const data = await metaFetch(`/act_${adAccountId}/insights`, {
-    fields: 'spend,impressions,clicks,actions,action_values',
-    time_range: JSON.stringify({ since: range.since, until: range.until }),
+  const data  = await metaFetch(`/act_${adAccountId}/insights`, {
+    fields:         'spend,impressions,clicks,actions,action_values',
+    time_range:     JSON.stringify({ since: range.since, until: range.until }),
     time_increment: '1',
-    level: 'account',
+    level:          'account',
   })
 
+  const conversionEvent = cfg.conversion_event
+  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
+
   return (data.data ?? []).map((row: Record<string, unknown>) => {
-    const ins = parseInsightsFull([row])
+    const ins    = parseInsightsFull([row])
+    const funnel = buildFunnel(ins.actions, ins.actionValues)
+    const convs  = getAction(ins.actions, conversionEvent, pixelFallback)
+
     return {
       fecha:       row.date_start as string,
       spend:       ins.spend,
       impressions: ins.impressions,
       clicks:      ins.clicks,
-      conversions: ins.leads,
-      purchases:   ins.purchases,
-      revenue:     ins.revenue,
+      conversions: convs,
+      purchases:   funnel.purchases,
+      revenue:     funnel.revenue,
     }
   })
 }

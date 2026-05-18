@@ -21,6 +21,7 @@ type Campaign = {
   purchases: number; revenue: number; roas: number
 }
 type DailyRow = { fecha: string; spend: number; impressions: number; clicks: number; conversions: number; purchases: number; revenue: number }
+type TipoProyecto = 'leads' | 'ecommerce'
 
 function FunnelStep({ label, value, prev }: { label: string; value: number; prev?: number }) {
   const pct = prev && prev > 0 ? ((value / prev) * 100).toFixed(1) : null
@@ -35,11 +36,13 @@ function FunnelStep({ label, value, prev }: { label: string; value: number; prev
 
 export default function MetaAdsPage() {
   const { clienteId } = useParams<{ clienteId: string }>()
-  const [summary,   setSummary]   = useState<Summary | null>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [daily,     setDaily]     = useState<DailyRow[]>([])
-  const [error,     setError]     = useState<string | null>(null)
-  const [loading,   setLoading]   = useState(true)
+  const [summary,      setSummary]      = useState<Summary | null>(null)
+  const [campaigns,    setCampaigns]    = useState<Campaign[]>([])
+  const [daily,        setDaily]        = useState<DailyRow[]>([])
+  const [tipoProyecto, setTipoProyecto] = useState<TipoProyecto>('leads')
+  const [funnelSteps,  setFunnelSteps]  = useState<string[]>([])
+  const [error,        setError]        = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(true)
 
   useEffect(() => {
     async function load() {
@@ -50,6 +53,8 @@ export default function MetaAdsPage() {
         setSummary(data.summary)
         setCampaigns(data.campaigns)
         setDaily(data.daily)
+        setTipoProyecto(data.tipo_proyecto ?? 'leads')
+        setFunnelSteps(data.funnel_steps ?? [])
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Error desconocido')
       } finally {
@@ -62,9 +67,23 @@ export default function MetaAdsPage() {
   if (loading) return <LoadingState />
   if (error)   return <ErrorState message={error} />
 
-  // Auto-detect ecommerce: has purchases or revenue
-  const isEcommerce = summary!.purchases > 0 || summary!.revenue > 0
+  // Use declared project type (set in client configuration)
+  const isEcommerce = tipoProyecto === 'ecommerce'
   const f = summary!.funnel
+
+  // Build funnel steps from config
+  const ALL_FUNNEL = [
+    { key: 'page_view',         label: 'Page Views',   val: f.page_views },
+    { key: 'view_content',      label: 'View Content', val: f.view_content },
+    { key: 'add_to_cart',       label: 'Add to Cart',  val: f.add_to_cart },
+    { key: 'initiate_checkout', label: 'Checkout',     val: f.initiate_checkout },
+    { key: 'purchase',          label: 'Compras',      val: f.purchases },
+  ]
+  const activeFunnelSteps = isEcommerce
+    ? (funnelSteps.length > 0
+        ? ALL_FUNNEL.filter(s => funnelSteps.includes(s.key))
+        : ALL_FUNNEL.filter(s => s.val > 0))
+    : []
 
   return (
     <div className="p-8 space-y-8">
@@ -109,17 +128,20 @@ export default function MetaAdsPage() {
         </>
       )}
 
-      {/* Funnel ecommerce */}
-      {isEcommerce && (f.view_content > 0 || f.add_to_cart > 0 || f.initiate_checkout > 0) && (
+      {/* Funnel ecommerce — only show configured steps that have data */}
+      {activeFunnelSteps.length >= 2 && (
         <div className="bg-white border border-[#e8e8e8] p-6">
           <h3 className="font-display text-base font-bold mb-1">Funnel de compra</h3>
           <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-4">tasas de conversión entre pasos</p>
           <div className="flex gap-px">
-            {f.page_views > 0 && <FunnelStep label="Page Views" value={f.page_views} />}
-            <FunnelStep label="View Content" value={f.view_content} prev={f.page_views || undefined} />
-            <FunnelStep label="Add to Cart"  value={f.add_to_cart}  prev={f.view_content || undefined} />
-            <FunnelStep label="Checkout"     value={f.initiate_checkout} prev={f.add_to_cart || undefined} />
-            <FunnelStep label="Compras"      value={f.purchases}    prev={f.initiate_checkout || undefined} />
+            {activeFunnelSteps.map((step, i) => (
+              <FunnelStep
+                key={step.key}
+                label={step.label}
+                value={step.val}
+                prev={i > 0 ? (activeFunnelSteps[i - 1].val || undefined) : undefined}
+              />
+            ))}
           </div>
         </div>
       )}

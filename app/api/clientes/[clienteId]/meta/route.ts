@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: cliente } = await supabase
     .from('clientes')
-    .select('meta_ad_account_id')
+    .select('meta_ad_account_id, tipo_proyecto, meta_events_config')
     .eq('id', clienteId)
     .single()
 
@@ -23,15 +23,23 @@ export async function GET(
   }
 
   // Remove "act_" prefix if present — we add it in the lib
-  const accountId = cliente.meta_ad_account_id.replace(/^act_/, '')
+  const accountId    = cliente.meta_ad_account_id.replace(/^act_/, '')
+  const config       = cliente.meta_events_config ?? {}
+  const tipoProyecto = cliente.tipo_proyecto ?? 'leads'
 
   try {
     const [summary, campaigns, daily] = await Promise.all([
-      fetchMetaSummary(accountId),
-      fetchMetaCampaigns(accountId),
-      fetchMetaDaily(accountId),
+      fetchMetaSummary(accountId, config),
+      fetchMetaCampaigns(accountId, config),
+      fetchMetaDaily(accountId, config),
     ])
-    return NextResponse.json({ summary, campaigns, daily })
+    return NextResponse.json({
+      summary,
+      campaigns,
+      daily,
+      tipo_proyecto: tipoProyecto,
+      funnel_steps:  config.funnel_steps ?? [],
+    })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Cliente } from '@/types/cliente'
+import type { Cliente, TipoProyecto } from '@/types/cliente'
 
 interface Props { cliente?: Cliente }
 
 interface FormState {
   nombre: string; dominio: string; estado: 'active' | 'paused' | 'churned'
   notas: string; alertas_activas: boolean; gads_via_mcc: boolean
+  tipo_proyecto: TipoProyecto
+  meta_conversion_event: string
+  meta_funnel_steps: string[]
   ga4_property_id: string; ga4_account_id: string; gads_customer_id: string
   ga4_conversion_events: string
   gsc_site_url: string; gtm_account_id: string; gtm_container_id: string
@@ -16,21 +19,63 @@ interface FormState {
   sgtm_url: string; sgtm_service_name: string; gcp_project_id: string; slack_channel_id: string
 }
 
+// ── Meta event presets ─────────────────────────────────────────────────────────
+const META_LEAD_EVENTS = [
+  { value: 'lead',                  label: 'Lead (formulario Meta)' },
+  { value: 'complete_registration', label: 'Registro completado' },
+  { value: 'contact',               label: 'Contacto' },
+  { value: 'schedule',              label: 'Cita programada' },
+  { value: 'submit_application',    label: 'Solicitud enviada' },
+  { value: 'subscribe',             label: 'Suscripción' },
+  { value: 'find_location',         label: 'Find Location' },
+]
+
+const META_ECOMMERCE_EVENTS = [
+  { value: 'purchase',              label: 'Compra (Purchase)' },
+  { value: 'add_to_cart',           label: 'Añadir al carrito' },
+  { value: 'initiate_checkout',     label: 'Iniciar pago' },
+  { value: 'complete_registration', label: 'Registro completado' },
+]
+
+const FUNNEL_STEPS = [
+  { value: 'page_view',         label: 'Page Views' },
+  { value: 'view_content',      label: 'View Content' },
+  { value: 'add_to_cart',       label: 'Add to Cart' },
+  { value: 'initiate_checkout', label: 'Checkout' },
+  { value: 'purchase',          label: 'Compra' },
+]
+
+const DEFAULT_FUNNEL_STEPS  = ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase']
+const DEFAULT_LEAD_EVENT     = 'lead'
+const DEFAULT_PURCHASE_EVENT = 'purchase'
+
 interface GA4Property { id: string; name: string; account: string }
 interface GSCSite     { url: string; permission: string }
 
 function toFormState(c?: Cliente): FormState {
   return {
-    nombre: c?.nombre ?? '', dominio: c?.dominio ?? '',
-    estado: c?.estado ?? 'active', notas: c?.notas ?? '',
-    alertas_activas: c?.alertas_activas ?? true, gads_via_mcc: c?.gads_via_mcc ?? true,
-    ga4_property_id: c?.ga4_property_id ?? '', ga4_account_id: c?.ga4_account_id ?? '',
+    nombre:                c?.nombre                ?? '',
+    dominio:               c?.dominio               ?? '',
+    estado:                c?.estado                ?? 'active',
+    notas:                 c?.notas                 ?? '',
+    alertas_activas:       c?.alertas_activas       ?? true,
+    gads_via_mcc:          c?.gads_via_mcc          ?? true,
+    tipo_proyecto:         c?.tipo_proyecto         ?? 'leads',
+    meta_conversion_event: c?.meta_events_config?.conversion_event ?? '',
+    meta_funnel_steps:     c?.meta_events_config?.funnel_steps     ?? [],
+    ga4_property_id:       c?.ga4_property_id       ?? '',
+    ga4_account_id:        c?.ga4_account_id        ?? '',
     ga4_conversion_events: c?.ga4_conversion_events ?? '',
-    gads_customer_id: c?.gads_customer_id ?? '', gsc_site_url: c?.gsc_site_url ?? '',
-    gtm_account_id: c?.gtm_account_id ?? '', gtm_container_id: c?.gtm_container_id ?? '',
-    meta_ad_account_id: c?.meta_ad_account_id ?? '', meta_pixel_id: c?.meta_pixel_id ?? '',
-    sgtm_url: c?.sgtm_url ?? '', sgtm_service_name: c?.sgtm_service_name ?? '',
-    gcp_project_id: c?.gcp_project_id ?? '', slack_channel_id: c?.slack_channel_id ?? '',
+    gads_customer_id:      c?.gads_customer_id      ?? '',
+    gsc_site_url:          c?.gsc_site_url           ?? '',
+    gtm_account_id:        c?.gtm_account_id         ?? '',
+    gtm_container_id:      c?.gtm_container_id       ?? '',
+    meta_ad_account_id:    c?.meta_ad_account_id     ?? '',
+    meta_pixel_id:         c?.meta_pixel_id          ?? '',
+    sgtm_url:              c?.sgtm_url              ?? '',
+    sgtm_service_name:     c?.sgtm_service_name     ?? '',
+    gcp_project_id:        c?.gcp_project_id        ?? '',
+    slack_channel_id:      c?.slack_channel_id      ?? '',
   }
 }
 
@@ -65,6 +110,16 @@ export default function ClienteForm({ cliente }: Props) {
       .catch(() => setGoogleOk(false))
   }, [])
 
+  // When tipo_proyecto changes, reset to sensible defaults
+  function handleTipoProyecto(tipo: TipoProyecto) {
+    setForm(f => ({
+      ...f,
+      tipo_proyecto:         tipo,
+      meta_conversion_event: '',
+      meta_funnel_steps:     tipo === 'ecommerce' ? DEFAULT_FUNNEL_STEPS : [],
+    }))
+  }
+
   function set(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value
@@ -72,20 +127,53 @@ export default function ClienteForm({ cliente }: Props) {
     }
   }
 
+  function toggleFunnelStep(step: string) {
+    setForm(f => {
+      const current = f.meta_funnel_steps
+      return {
+        ...f,
+        meta_funnel_steps: current.includes(step)
+          ? current.filter(s => s !== step)
+          : [...current, step],
+      }
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(null)
+
+    // Resolve defaults if user left blank
+    const conversionEvent = (form.meta_conversion_event === '' || form.meta_conversion_event === '__custom')
+      ? (form.tipo_proyecto === 'ecommerce' ? DEFAULT_PURCHASE_EVENT : DEFAULT_LEAD_EVENT)
+      : form.meta_conversion_event.trim()
+
+    const funnelSteps = form.tipo_proyecto === 'ecommerce'
+      ? (form.meta_funnel_steps.length > 0 ? form.meta_funnel_steps : DEFAULT_FUNNEL_STEPS)
+      : []
+
     const payload = {
-      nombre: form.nombre, dominio: nullIfEmpty(form.dominio),
-      estado: form.estado, notas: nullIfEmpty(form.notas),
-      alertas_activas: form.alertas_activas, gads_via_mcc: form.gads_via_mcc,
-      ga4_property_id: nullIfEmpty(form.ga4_property_id), ga4_account_id: nullIfEmpty(form.ga4_account_id),
+      nombre:             form.nombre,
+      dominio:            nullIfEmpty(form.dominio),
+      estado:             form.estado,
+      notas:              nullIfEmpty(form.notas),
+      alertas_activas:    form.alertas_activas,
+      gads_via_mcc:       form.gads_via_mcc,
+      tipo_proyecto:      form.tipo_proyecto,
+      meta_events_config: { conversion_event: conversionEvent, funnel_steps: funnelSteps },
+      ga4_property_id:       nullIfEmpty(form.ga4_property_id),
+      ga4_account_id:        nullIfEmpty(form.ga4_account_id),
       ga4_conversion_events: nullIfEmpty(form.ga4_conversion_events),
-      gads_customer_id: nullIfEmpty(form.gads_customer_id), gsc_site_url: nullIfEmpty(form.gsc_site_url),
-      gtm_account_id: nullIfEmpty(form.gtm_account_id), gtm_container_id: nullIfEmpty(form.gtm_container_id),
-      meta_ad_account_id: nullIfEmpty(form.meta_ad_account_id), meta_pixel_id: nullIfEmpty(form.meta_pixel_id),
-      sgtm_url: nullIfEmpty(form.sgtm_url), sgtm_service_name: nullIfEmpty(form.sgtm_service_name),
-      gcp_project_id: nullIfEmpty(form.gcp_project_id), slack_channel_id: nullIfEmpty(form.slack_channel_id),
+      gads_customer_id:      nullIfEmpty(form.gads_customer_id),
+      gsc_site_url:          nullIfEmpty(form.gsc_site_url),
+      gtm_account_id:        nullIfEmpty(form.gtm_account_id),
+      gtm_container_id:      nullIfEmpty(form.gtm_container_id),
+      meta_ad_account_id:    nullIfEmpty(form.meta_ad_account_id),
+      meta_pixel_id:         nullIfEmpty(form.meta_pixel_id),
+      sgtm_url:              nullIfEmpty(form.sgtm_url),
+      sgtm_service_name:     nullIfEmpty(form.sgtm_service_name),
+      gcp_project_id:        nullIfEmpty(form.gcp_project_id),
+      slack_channel_id:      nullIfEmpty(form.slack_channel_id),
     }
     const res = await fetch(isEdit ? `/api/clientes/${cliente.id}` : '/api/clientes', {
       method: isEdit ? 'PATCH' : 'POST',
@@ -101,6 +189,8 @@ export default function ClienteForm({ cliente }: Props) {
     router.push(`/clientes/${data.id}`)
     router.refresh()
   }
+
+  const eventOptions = form.tipo_proyecto === 'ecommerce' ? META_ECOMMERCE_EVENTS : META_LEAD_EVENTS
 
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
@@ -118,6 +208,17 @@ export default function ClienteForm({ cliente }: Props) {
           <div>
             <label className={labelCls}>Dominio</label>
             <input value={form.dominio} onChange={set('dominio')} placeholder="ejemplo.com" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Tipo de proyecto</label>
+            <select
+              value={form.tipo_proyecto}
+              onChange={e => handleTipoProyecto(e.target.value as TipoProyecto)}
+              className={selectCls}
+            >
+              <option value="leads">Captación de leads</option>
+              <option value="ecommerce">Ecommerce</option>
+            </select>
           </div>
           <div>
             <label className={labelCls}>Estado</label>
@@ -168,7 +269,6 @@ export default function ClienteForm({ cliente }: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {/* GA4 Property — dropdown if connected, text if not */}
           <div className="col-span-2">
             <label className={labelCls}>GA4 Property</label>
             {googleOk === true && ga4Props.length > 0 ? (
@@ -196,7 +296,6 @@ export default function ClienteForm({ cliente }: Props) {
             )}
           </div>
 
-          {/* GSC Site — dropdown if connected */}
           <div className="col-span-2">
             <label className={labelCls}>Search Console Site</label>
             {googleOk === true && gscSites.length > 0 ? (
@@ -246,6 +345,8 @@ export default function ClienteForm({ cliente }: Props) {
         <div className="pb-3 border-b-2 border-[#000000]">
           <h2 className="font-display text-lg font-bold">Meta</h2>
         </div>
+
+        {/* IDs */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Ad Account ID</label>
@@ -255,6 +356,66 @@ export default function ClienteForm({ cliente }: Props) {
             <label className={labelCls}>Pixel ID</label>
             <input value={form.meta_pixel_id} onChange={set('meta_pixel_id')} placeholder="123456789" className={inputCls} />
           </div>
+        </div>
+
+        {/* Event config */}
+        <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-5">
+          <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
+
+          {/* Main conversion event */}
+          <div>
+            <label className={labelCls}>
+              {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Evento de conversión (lead)'}
+            </label>
+            <select
+              value={form.meta_conversion_event}
+              onChange={set('meta_conversion_event')}
+              className={selectCls}
+            >
+              <option value="">
+                — Por defecto: {form.tipo_proyecto === 'ecommerce' ? 'Purchase' : 'Lead'} —
+              </option>
+              {eventOptions.map(e => (
+                <option key={e.value} value={e.value}>{e.label}</option>
+              ))}
+              <option value="__custom">Otro (introducir manualmente)…</option>
+            </select>
+
+            {form.meta_conversion_event === '__custom' && (
+              <input
+                className={`${inputCls} mt-2`}
+                placeholder="Nombre del evento en Meta (ej: custom_lead)"
+                onBlur={e => setForm(f => ({ ...f, meta_conversion_event: e.target.value || '__custom' }))}
+                defaultValue=""
+              />
+            )}
+            <p className="mt-1 font-mono text-[9px] text-[#888888]">
+              Este evento se usa como conversión principal en todos los reportes de Meta Ads.
+            </p>
+          </div>
+
+          {/* Funnel steps — ecommerce only */}
+          {form.tipo_proyecto === 'ecommerce' && (
+            <div>
+              <label className={labelCls}>Pasos del funnel a visualizar</label>
+              <div className="flex flex-wrap gap-4 mt-2">
+                {FUNNEL_STEPS.map(step => (
+                  <label key={step.value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.meta_funnel_steps.includes(step.value)}
+                      onChange={() => toggleFunnelStep(step.value)}
+                      className="accent-[#F7415C]"
+                    />
+                    <span className="font-mono text-xs text-[#555555]">{step.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 font-mono text-[9px] text-[#888888]">
+                Los pasos seleccionados aparecen en el funnel de compra dentro de Meta Ads.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

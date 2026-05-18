@@ -2,6 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+const metaEventsConfigSchema = z.object({
+  conversion_event: z.string().optional(),
+  funnel_steps: z.array(z.string()).optional(),
+})
+
 const updateSchema = z.object({
   nombre: z.string().min(1).optional(),
   dominio: z.string().optional().nullable(),
@@ -11,6 +16,8 @@ const updateSchema = z.object({
   notas: z.string().optional().nullable(),
   slack_channel_id: z.string().optional().nullable(),
   alertas_activas: z.boolean().optional(),
+  tipo_proyecto: z.enum(['leads', 'ecommerce']).optional(),
+  meta_events_config: metaEventsConfigSchema.optional(),
   ga4_property_id: z.string().optional().nullable(),
   ga4_account_id: z.string().optional().nullable(),
   gads_customer_id: z.string().optional().nullable(),

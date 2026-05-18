@@ -1,3 +1,12 @@
+export type TipoProyecto = 'leads' | 'ecommerce'
+
+export interface MetaEventsConfig {
+  /** Main conversion action type, e.g. "lead", "purchase", "complete_registration" */
+  conversion_event?: string
+  /** Funnel steps to display (ecommerce), e.g. ["view_content","add_to_cart","initiate_checkout","purchase"] */
+  funnel_steps?: string[]
+}
+
 export interface Cliente {
   id: string
   nombre: string
@@ -8,6 +17,8 @@ export interface Cliente {
   notas: string | null
   slack_channel_id: string | null
   alertas_activas: boolean
+  tipo_proyecto: TipoProyecto
+  meta_events_config: MetaEventsConfig
   ga4_property_id: string | null
   ga4_account_id: string | null
   gads_customer_id: string | null
