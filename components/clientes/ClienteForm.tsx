@@ -111,6 +111,183 @@ const inputCls  = "w-full border border-[#e8e8e8] bg-white px-3 py-2 text-sm tex
 const selectCls = "w-full border border-[#e8e8e8] bg-white px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[#000000] transition-colors"
 const labelCls  = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
 
+// ── Ecommerce-only standard events (hidden for leads projects) ─────────────────
+const ECOMMERCE_ONLY = new Set([
+  'purchase', 'add_to_cart', 'initiate_checkout', 'add_payment_info', 'add_to_wishlist',
+])
+
+// ── ConversionEventsSelector ──────────────────────────────────────────────────
+function EventRow({
+  event, checked, onToggle,
+}: {
+  event: MetaEvent & { count?: number }
+  checked: boolean
+  onToggle: () => void
+}) {
+  return (
+    <label
+      className={`flex items-center gap-3 px-3 py-2 border cursor-pointer transition-colors ${
+        checked ? 'border-[#000000] bg-[#000000]' : 'border-[#e8e8e8] hover:border-[#555555]'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="accent-[#F7415C] shrink-0"
+      />
+      <span className={`font-mono text-xs flex-1 ${checked ? 'text-white' : 'text-[#000000]'}`}>
+        {event.label}
+      </span>
+      {event.count !== undefined && event.count > 0 && (
+        <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
+          checked ? 'bg-white/20 text-white' : 'bg-[#f0f0f0] text-[#888888]'
+        }`}>
+          {event.count.toLocaleString('es-ES')} eventos/año
+        </span>
+      )}
+      {event.type === 'custom' && (
+        <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
+          checked ? 'bg-white/20 text-white' : 'bg-[#fef8ed] text-[#d4820a]'
+        }`}>
+          custom
+        </span>
+      )}
+    </label>
+  )
+}
+
+function ConversionEventsSelector({
+  accountId, tipoProyecto, selected, metaEvents, metaEventsLoading, metaEventsError,
+  fallbackOptions, onDetect, onToggle,
+}: {
+  accountId:          string
+  tipoProyecto:       TipoProyecto
+  selected:           string[]
+  metaEvents:         MetaEvent[] | null
+  metaEventsLoading:  boolean
+  metaEventsError:    string | null
+  fallbackOptions:    { value: string; label: string }[]
+  onDetect:           () => void
+  onToggle:           (v: string) => void
+}) {
+  const isEcommerce = tipoProyecto === 'ecommerce'
+
+  // Build the full display list
+  const detected = metaEvents ?? []
+  const detectedValues = new Set(detected.map(e => e.value))
+
+  // Filter standard events by project type
+  const filteredDetected = detected.filter(e =>
+    e.type === 'custom' || isEcommerce || !ECOMMERCE_ONLY.has(e.value)
+  )
+
+  // Any previously saved events not found in current detection (show them at top)
+  const orphaned: MetaEvent[] = selected
+    .filter(v => !detectedValues.has(v))
+    .map(v => ({ value: v, label: v, type: 'standard' as const }))
+
+  // When no detection yet: show filtered hardcoded fallback
+  const fallback = fallbackOptions
+    .filter(e => isEcommerce || !ECOMMERCE_ONLY.has(e.value))
+    .map(e => ({ ...e, type: 'standard' as const }))
+
+  const standardList = filteredDetected.filter(e => e.type === 'standard')
+  const customList   = filteredDetected.filter(e => e.type === 'custom')
+  const usingDetected = detected.length > 0
+
+  const labelCls = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
+
+  return (
+    <div>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <label className={labelCls + ' mb-0'}>
+          {isEcommerce ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
+        </label>
+        <button
+          type="button"
+          onClick={onDetect}
+          disabled={!accountId.trim() || metaEventsLoading}
+          className="font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 border border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+        >
+          {metaEventsLoading
+            ? <><span className="inline-block w-2.5 h-2.5 border border-t-transparent rounded-full animate-spin" />Detectando…</>
+            : <>↻ Detectar eventos de la cuenta</>
+          }
+        </button>
+      </div>
+
+      {/* No account ID */}
+      {!accountId.trim() && (
+        <p className="mb-3 font-mono text-[9px] text-[#888888]">
+          Introduce el Ad Account ID para detectar los eventos reales de esta cuenta.
+        </p>
+      )}
+
+      {/* Error */}
+      {metaEventsError && (
+        <p className="mb-3 font-mono text-[9px] text-[#F7415C]">Error: {metaEventsError}</p>
+      )}
+
+      {/* Orphaned (previously saved, not in current detection) */}
+      {orphaned.length > 0 && (
+        <div className="mb-3">
+          <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Guardados anteriormente</p>
+          <div className="space-y-1">
+            {orphaned.map(e => (
+              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Standard events */}
+      {(usingDetected ? standardList : fallback).length > 0 && (
+        <div className="mb-3">
+          {usingDetected && (
+            <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Eventos estándar</p>
+          )}
+          <div className="space-y-1">
+            {(usingDetected ? standardList : fallback).map(e => (
+              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Custom conversions */}
+      {usingDetected && customList.length > 0 && (
+        <div className="mb-3">
+          <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Conversiones personalizadas</p>
+          <div className="space-y-1">
+            {customList.map(e => (
+              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {usingDetected && (
+        <p className="font-mono text-[9px] text-[#888888]">
+          {detected.length} evento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} en la cuenta
+        </p>
+      )}
+
+      <p className="mt-2 font-mono text-[9px] text-[#888888]">
+        {isEcommerce
+          ? 'Selecciona el evento principal de compra.'
+          : 'Selecciona uno o varios — se sumarán como leads totales en todos los reportes.'}
+      </p>
+      {selected.length > 1 && (
+        <p className="mt-1 font-mono text-[9px] text-[#1a7a4a]">
+          ✓ {selected.length} eventos seleccionados — se sumarán automáticamente
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function ClienteForm({ cliente }: Props) {
   const [form, setForm]         = useState<FormState>(toFormState(cliente))
   const [loading, setLoading]   = useState(false)
@@ -442,111 +619,17 @@ export default function ClienteForm({ cliente }: Props) {
           <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
 
           {/* Conversion events — dynamic from Meta API */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className={labelCls + ' mb-0'}>
-                {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
-              </label>
-              <button
-                type="button"
-                onClick={() => detectMetaEvents()}
-                disabled={!form.meta_ad_account_id.trim() || metaEventsLoading}
-                className="font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 border border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-              >
-                {metaEventsLoading ? (
-                  <>
-                    <span className="inline-block w-2.5 h-2.5 border border-[#888888] border-t-transparent rounded-full animate-spin" />
-                    Detectando…
-                  </>
-                ) : (
-                  <>↻ Detectar eventos de la cuenta</>
-                )}
-              </button>
-            </div>
-
-            {/* Error state */}
-            {metaEventsError && (
-              <p className="mb-2 font-mono text-[9px] text-[#F7415C]">Error: {metaEventsError}</p>
-            )}
-
-            {/* No account ID yet */}
-            {!form.meta_ad_account_id.trim() && (
-              <p className="mb-2 font-mono text-[9px] text-[#888888]">
-                Introduce el Ad Account ID para detectar los eventos reales de esta cuenta.
-              </p>
-            )}
-
-            {/* Event checkboxes */}
-            {(() => {
-              // Build display list: detected events + any already-selected not in list
-              const detected = metaEvents ?? []
-              const detectedValues = new Set(detected.map(e => e.value))
-              const savedButNotDetected: MetaEvent[] = form.meta_conversion_events
-                .filter(v => !detectedValues.has(v))
-                .map(v => ({ value: v, label: v, type: 'standard' as const }))
-              const displayList = detected.length > 0
-                ? [...detected, ...savedButNotDetected]
-                : eventOptions.map(e => ({ ...e, type: 'standard' as const, count: undefined }))
-
-              return (
-                <div className="space-y-1">
-                  {displayList.map(e => {
-                    const checked = form.meta_conversion_events.includes(e.value)
-                    return (
-                      <label
-                        key={e.value}
-                        className={`flex items-center gap-3 px-3 py-2 border cursor-pointer transition-colors ${
-                          checked
-                            ? 'border-[#000000] bg-[#000000]'
-                            : 'border-[#e8e8e8] hover:border-[#555555]'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleConversionEvent(e.value)}
-                          className="accent-[#F7415C] shrink-0"
-                        />
-                        <span className={`font-mono text-xs flex-1 ${checked ? 'text-white' : 'text-[#000000]'}`}>
-                          {e.label}
-                        </span>
-                        {e.count !== undefined && e.count > 0 && (
-                          <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
-                            checked ? 'bg-white/20 text-white' : 'bg-[#f0f0f0] text-[#888888]'
-                          }`}>
-                            {e.count.toLocaleString('es-ES')} eventos
-                          </span>
-                        )}
-                        {e.type === 'custom' && (
-                          <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
-                            checked ? 'bg-white/20 text-white' : 'bg-[#fef8ed] text-[#d4820a]'
-                          }`}>
-                            custom
-                          </span>
-                        )}
-                      </label>
-                    )
-                  })}
-                  {detected.length > 0 && (
-                    <p className="pt-1 font-mono text-[9px] text-[#888888]">
-                      {detected.length} evento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} en esta cuenta
-                    </p>
-                  )}
-                </div>
-              )
-            })()}
-
-            <p className="mt-2 font-mono text-[9px] text-[#888888]">
-              {form.tipo_proyecto === 'ecommerce'
-                ? 'Selecciona el evento principal de compra.'
-                : 'Selecciona uno o varios eventos — se sumarán como leads totales en todos los reportes.'}
-            </p>
-            {form.meta_conversion_events.length > 1 && (
-              <p className="mt-1 font-mono text-[9px] text-[#1a7a4a]">
-                ✓ {form.meta_conversion_events.length} eventos seleccionados — se sumarán automáticamente
-              </p>
-            )}
-          </div>
+          <ConversionEventsSelector
+            accountId={form.meta_ad_account_id}
+            tipoProyecto={form.tipo_proyecto}
+            selected={form.meta_conversion_events}
+            metaEvents={metaEvents}
+            metaEventsLoading={metaEventsLoading}
+            metaEventsError={metaEventsError}
+            fallbackOptions={eventOptions}
+            onDetect={() => detectMetaEvents()}
+            onToggle={toggleConversionEvent}
+          />
 
           {/* Funnel steps — all project types */}
           <div>
