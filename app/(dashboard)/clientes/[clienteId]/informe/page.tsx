@@ -25,11 +25,13 @@ interface MetaFunnelData {
 }
 
 interface InformeData {
-  informe_config: Partial<InformeConfig>
-  tipo_proyecto:  TipoProyecto
-  funnel_steps:   string[]   // available from meta_events_config
-  desde:          string
-  hasta:          string
+  informe_config:         Partial<InformeConfig>
+  tipo_proyecto:          TipoProyecto
+  funnel_steps:           string[]
+  breakdown_events:       string[]
+  breakdown_event_labels: Record<string, string>
+  desde:                  string
+  hasta:                  string
   ga4: {
     sessions: number; sessions_prev: number
     users: number; users_prev: number
@@ -45,9 +47,10 @@ interface InformeData {
   meta: {
     spend: number; spend_prev: number
     impressions: number; clicks: number; ctr: number; cpc: number; cpp: number; reach: number
-    conversions: number; cpl: number; cpl_prev: number
+    conversions: number; conversions_prev?: number; cpl: number; cpl_prev: number
     roas: number; revenue: number; revenue_prev: number; purchases: number
     funnel: MetaFunnelData
+    breakdown: Record<string, number>
   } | null
   campaigns: MetaCampaign[] | null
   ga4Error:  string | null
@@ -343,6 +346,9 @@ function MetaBlock({
 }) {
   const rangeLabel = `${data.desde} → ${data.hasta}`
   const m = data.meta
+  const breakdownEvents = data.breakdown_events ?? []
+  const breakdownLabels = data.breakdown_event_labels ?? {}
+
   return (
     <div className="border border-[#e8e8e8]">
       <SectionHeader title="Meta Ads" subtitle={rangeLabel} />
@@ -358,6 +364,27 @@ function MetaBlock({
               <KpiGrid>
                 {metrics.map(id => renderMetaMetric(id, m))}
               </KpiGrid>
+            )}
+
+            {/* Desglose por origen de lead */}
+            {breakdownEvents.length > 0 && (
+              <div className="p-6 border-t border-[#e8e8e8]">
+                <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-4">
+                  Desglose por origen de lead
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-px bg-[#e8e8e8]">
+                  {breakdownEvents.map(evt => {
+                    const count = m.breakdown?.[evt] ?? 0
+                    const label = breakdownLabels[evt] ?? STEP_LABELS[evt] ?? evt
+                    return (
+                      <div key={evt} className="bg-white p-4">
+                        <p className="font-mono text-[9px] tracking-[1px] uppercase text-[#888888] mb-1 truncate" title={label}>{label}</p>
+                        <p className="font-display text-2xl font-bold">{count.toLocaleString('es-ES')}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Funnel */}

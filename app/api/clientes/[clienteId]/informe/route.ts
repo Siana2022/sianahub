@@ -38,7 +38,9 @@ export async function GET(
   const customRange: DateRange = { since: desde, until: hasta }
 
   // Available funnel steps come from the client's meta_events_config
-  const funnel_steps: string[] = metaConfig.funnel_steps ?? []
+  const funnel_steps: string[]              = metaConfig.funnel_steps      ?? []
+  const breakdown_events: string[]          = metaConfig.breakdown_events  ?? []
+  const breakdown_event_labels: Record<string, string> = metaConfig.breakdown_event_labels ?? {}
 
   const [ga4, gsc, meta, campaigns] = await Promise.allSettled([
     propertyId            ? fetchGA4SummaryRange(propertyId, desde, hasta)                : Promise.resolve(null),
@@ -48,9 +50,11 @@ export async function GET(
   ])
 
   return NextResponse.json({
-    informe_config: cliente?.informe_config ?? {},
-    tipo_proyecto:  cliente?.tipo_proyecto  ?? 'leads',
+    informe_config:         cliente?.informe_config ?? {},
+    tipo_proyecto:          cliente?.tipo_proyecto  ?? 'leads',
     funnel_steps,
+    breakdown_events,
+    breakdown_event_labels,
     desde,
     hasta,
     ga4:       ga4.status       === 'fulfilled' ? ga4.value       : null,
