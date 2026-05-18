@@ -41,7 +41,7 @@ export async function GET(
   // GTM ID mismatch
   if (snippet.gtm_id_matches === false) {
     const { data: alerta } = await supabase
-      .from('alertas')
+      .from('alerts')
       .insert({
         cliente_id: clienteId,
         tipo: 'gtm_id_mismatch',
@@ -59,7 +59,7 @@ export async function GET(
   // GTM ID not found
   if (snippet.gtm_id_found === null && !snippet.error) {
     const { data: alerta } = await supabase
-      .from('alertas')
+      .from('alerts')
       .insert({
         cliente_id: clienteId,
         tipo: 'gtm_id_missing',
@@ -77,7 +77,7 @@ export async function GET(
   // sGTM URL mismatch
   if (snippet.sgtm_url_matches === false) {
     const { data: alerta } = await supabase
-      .from('alertas')
+      .from('alerts')
       .insert({
         cliente_id: clienteId,
         tipo: 'sgtm_url_mismatch',
@@ -95,7 +95,7 @@ export async function GET(
   // sGTM health failure
   if (!health.healthy && cliente.sgtm_url) {
     const { data: alerta } = await supabase
-      .from('alertas')
+      .from('alerts')
       .insert({
         cliente_id: clienteId,
         tipo: 'sgtm_health_failure',

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') ?? '50', 10)
 
   let query = supabase
-    .from('alertas')
+    .from('alerts')
     .select('*, clientes(nombre)')
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: alerta, error } = await supabase
-    .from('alertas')
+    .from('alerts')
     .insert({
       ...parsed.data,
       estado: 'pending',

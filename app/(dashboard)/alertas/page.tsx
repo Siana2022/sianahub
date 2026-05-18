@@ -9,7 +9,7 @@ export default async function AlertasPage() {
   const supabase = await createClient()
 
   const { data: alertas } = await supabase
-    .from('alertas')
+    .from('alerts')
     .select('*, clientes(nombre)')
     .in('estado', ['pending', 'reviewing'])
     .order('created_at', { ascending: false })
