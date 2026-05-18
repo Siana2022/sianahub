@@ -1,9 +1,11 @@
 export type TipoProyecto = 'leads' | 'ecommerce'
 
 export interface MetaEventsConfig {
-  /** Main conversion action type, e.g. "lead", "purchase", "complete_registration" */
+  /** Main conversion action type (single, backward compat) */
   conversion_event?: string
-  /** Funnel steps to display (ecommerce), e.g. ["view_content","add_to_cart","initiate_checkout","purchase"] */
+  /** Multiple conversion events to sum as total conversions — takes priority over conversion_event */
+  conversion_events?: string[]
+  /** Funnel steps to display, e.g. ["view_content","add_to_cart","initiate_checkout","purchase"] */
   funnel_steps?: string[]
 }
 

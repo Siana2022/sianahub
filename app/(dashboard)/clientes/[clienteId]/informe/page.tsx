@@ -113,6 +113,7 @@ const STEP_LABELS: Record<string, string> = {
   schedule:              'Citas',
   submit_application:    'Solicitudes',
   subscribe:             'Suscripciones',
+  start_trial:           'Trial iniciado',
 }
 
 // ── Config helpers ─────────────────────────────────────────────────────────────

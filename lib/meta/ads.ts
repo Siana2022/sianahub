@@ -87,16 +87,36 @@ export interface DateRange {
 
 // ── Defaults ───────────────────────────────────────────────────────────────────
 
-const DEFAULT_CONFIG: Required<MetaEventsConfig> = {
-  conversion_event: 'lead',
-  funnel_steps: ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase'],
+const DEFAULT_CONFIG = {
+  conversion_event:  'lead',
+  conversion_events: ['lead'] as string[],
+  funnel_steps:      ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase'] as string[],
 }
 
-function resolveConfig(config?: MetaEventsConfig): Required<MetaEventsConfig> {
+interface ResolvedConfig {
+  conversion_event:  string
+  conversion_events: string[]
+  funnel_steps:      string[]
+}
+
+function resolveConfig(config?: MetaEventsConfig): ResolvedConfig {
+  // conversion_events (array) takes priority over legacy conversion_event (single)
+  const events = config?.conversion_events?.length
+    ? config.conversion_events
+    : config?.conversion_event
+      ? [config.conversion_event]
+      : DEFAULT_CONFIG.conversion_events
+
   return {
-    conversion_event: config?.conversion_event ?? DEFAULT_CONFIG.conversion_event,
-    funnel_steps:     config?.funnel_steps     ?? DEFAULT_CONFIG.funnel_steps,
+    conversion_event:  events[0],
+    conversion_events: events,
+    funnel_steps:      config?.funnel_steps ?? DEFAULT_CONFIG.funnel_steps,
   }
+}
+
+/** Sum a conversion event (with pixel fallback) across multiple event types */
+function sumActions(actions: ActionRow[], eventTypes: string[]): number {
+  return eventTypes.reduce((sum, evt) => sum + getAction(actions, evt, pixelFallback(evt)), 0)
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -222,11 +242,9 @@ export async function fetchMetaSummary(
   const c = parseInsightsFull(curr.data ?? [])
   const p = parseInsightsFull(prev.data ?? [])
 
-  // Main conversions: use configured event type (with pixel fallback)
-  const convEvent   = cfg.conversion_event
-  const convPixel   = pixelFallback(convEvent)
-  const convCurr    = getAction(c.actions, convEvent, convPixel)
-  const convPrev    = getAction(p.actions, convEvent, convPixel)
+  // Main conversions: sum all configured conversion events
+  const convCurr = sumActions(c.actions, cfg.conversion_events)
+  const convPrev = sumActions(p.actions, cfg.conversion_events)
 
   const funnel     = buildFunnel(c.actions, c.actionValues, cfg.funnel_steps)
   const funnelPrev = buildFunnel(p.actions, p.actionValues, cfg.funnel_steps)
@@ -264,14 +282,11 @@ export async function fetchMetaCampaigns(
     limit:      '20',
   })
 
-  const convEvent = cfg.conversion_event
-  const convPixel = pixelFallback(convEvent)
-
   return (data.data ?? []).map((c: Record<string, unknown>) => {
     const insData = (c.insights as { data: Record<string, unknown>[] })?.data ?? []
     const ins     = parseInsightsFull(insData)
     const funnel  = buildFunnel(ins.actions, ins.actionValues, cfg.funnel_steps)
-    const convs   = getAction(ins.actions, convEvent, convPixel)
+    const convs   = sumActions(ins.actions, cfg.conversion_events)
 
     return {
       id:          c.id       as string,
@@ -306,13 +321,10 @@ export async function fetchMetaDaily(
     level:          'account',
   })
 
-  const convEvent = cfg.conversion_event
-  const convPixel = pixelFallback(convEvent)
-
   return (data.data ?? []).map((row: Record<string, unknown>) => {
     const ins    = parseInsightsFull([row])
     const funnel = buildFunnel(ins.actions, ins.actionValues, cfg.funnel_steps)
-    const convs  = getAction(ins.actions, convEvent, convPixel)
+    const convs  = sumActions(ins.actions, cfg.conversion_events)
 
     return {
       fecha:       row.date_start as string,

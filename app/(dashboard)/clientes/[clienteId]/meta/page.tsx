@@ -73,17 +73,18 @@ export default function MetaAdsPage() {
 
   // Friendly labels for known event names
   const STEP_LABELS: Record<string, string> = {
-    page_view:            'Page Views',
-    view_content:         'View Content',
-    add_to_cart:          'Add to Cart',
-    initiate_checkout:    'Checkout',
-    purchase:             'Compras',
-    lead:                 'Leads',
-    complete_registration:'Registros',
-    contact:              'Contactos',
-    schedule:             'Citas',
-    submit_application:   'Solicitudes',
-    subscribe:            'Suscripciones',
+    page_view:             'Page Views',
+    view_content:          'View Content',
+    add_to_cart:           'Add to Cart',
+    initiate_checkout:     'Checkout',
+    purchase:              'Compras',
+    lead:                  'Leads',
+    complete_registration: 'Registros',
+    contact:               'Contactos',
+    schedule:              'Citas',
+    submit_application:    'Solicitudes',
+    subscribe:             'Suscripciones',
+    start_trial:           'Trial iniciado',
   }
 
   // Build funnel from configured steps using the dynamic steps map

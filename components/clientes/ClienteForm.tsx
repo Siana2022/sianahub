@@ -10,7 +10,7 @@ interface FormState {
   nombre: string; dominio: string; estado: 'active' | 'paused' | 'churned'
   notas: string; alertas_activas: boolean; gads_via_mcc: boolean
   tipo_proyecto: TipoProyecto
-  meta_conversion_event: string
+  meta_conversion_events: string[]
   meta_funnel_steps: string[]
   ga4_property_id: string; ga4_account_id: string; gads_customer_id: string
   ga4_conversion_events: string
@@ -27,6 +27,7 @@ const META_LEAD_EVENTS = [
   { value: 'schedule',              label: 'Cita programada' },
   { value: 'submit_application',    label: 'Solicitud enviada' },
   { value: 'subscribe',             label: 'Suscripción' },
+  { value: 'start_trial',           label: 'Trial iniciado (Financiación)' },
   { value: 'find_location',         label: 'Find Location' },
 ]
 
@@ -38,13 +39,14 @@ const META_ECOMMERCE_EVENTS = [
 ]
 
 const FUNNEL_STEPS_LEADS = [
-  { value: 'page_view',            label: 'Page Views' },
-  { value: 'view_content',         label: 'View Content' },
-  { value: 'lead',                 label: 'Lead' },
-  { value: 'complete_registration',label: 'Registro completado' },
-  { value: 'contact',              label: 'Contacto' },
-  { value: 'schedule',             label: 'Cita programada' },
-  { value: 'submit_application',   label: 'Solicitud enviada' },
+  { value: 'page_view',             label: 'Page Views' },
+  { value: 'view_content',          label: 'View Content' },
+  { value: 'lead',                  label: 'Lead' },
+  { value: 'complete_registration', label: 'Registro completado' },
+  { value: 'contact',               label: 'Contacto' },
+  { value: 'schedule',              label: 'Cita programada' },
+  { value: 'submit_application',    label: 'Solicitud enviada' },
+  { value: 'start_trial',           label: 'Trial iniciado' },
 ]
 
 const FUNNEL_STEPS_ECOMMERCE = [
@@ -71,9 +73,14 @@ function toFormState(c?: Cliente): FormState {
     notas:                 c?.notas                 ?? '',
     alertas_activas:       c?.alertas_activas       ?? true,
     gads_via_mcc:          c?.gads_via_mcc          ?? true,
-    tipo_proyecto:         c?.tipo_proyecto         ?? 'leads',
-    meta_conversion_event: c?.meta_events_config?.conversion_event ?? '',
-    meta_funnel_steps:     c?.meta_events_config?.funnel_steps     ??
+    tipo_proyecto:          c?.tipo_proyecto ?? 'leads',
+    // Read from conversion_events array first; fall back to wrapping single conversion_event
+    meta_conversion_events: c?.meta_events_config?.conversion_events?.length
+      ? c.meta_events_config.conversion_events
+      : c?.meta_events_config?.conversion_event
+        ? [c.meta_events_config.conversion_event]
+        : [],
+    meta_funnel_steps:      c?.meta_events_config?.funnel_steps ??
       (c?.tipo_proyecto === 'ecommerce' ? DEFAULT_FUNNEL_STEPS_ECOMMERCE : DEFAULT_FUNNEL_STEPS_LEADS),
     ga4_property_id:       c?.ga4_property_id       ?? '',
     ga4_account_id:        c?.ga4_account_id        ?? '',
@@ -126,12 +133,24 @@ export default function ClienteForm({ cliente }: Props) {
   function handleTipoProyecto(tipo: TipoProyecto) {
     setForm(f => ({
       ...f,
-      tipo_proyecto:         tipo,
-      meta_conversion_event: '',
-      meta_funnel_steps:     tipo === 'ecommerce'
+      tipo_proyecto:          tipo,
+      meta_conversion_events: [],
+      meta_funnel_steps:      tipo === 'ecommerce'
         ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
         : DEFAULT_FUNNEL_STEPS_LEADS,
     }))
+  }
+
+  function toggleConversionEvent(evt: string) {
+    setForm(f => {
+      const curr = f.meta_conversion_events
+      return {
+        ...f,
+        meta_conversion_events: curr.includes(evt)
+          ? curr.filter(e => e !== evt)
+          : [...curr, evt],
+      }
+    })
   }
 
   function set(key: keyof FormState) {
@@ -157,10 +176,11 @@ export default function ClienteForm({ cliente }: Props) {
     e.preventDefault()
     setLoading(true); setError(null)
 
-    // Resolve defaults if user left blank
-    const conversionEvent = (form.meta_conversion_event === '' || form.meta_conversion_event === '__custom')
-      ? (form.tipo_proyecto === 'ecommerce' ? DEFAULT_PURCHASE_EVENT : DEFAULT_LEAD_EVENT)
-      : form.meta_conversion_event.trim()
+    // Resolve conversion events — default to single event if nothing selected
+    const defaultEvent = form.tipo_proyecto === 'ecommerce' ? DEFAULT_PURCHASE_EVENT : DEFAULT_LEAD_EVENT
+    const conversionEvents = form.meta_conversion_events.length > 0
+      ? form.meta_conversion_events
+      : [defaultEvent]
 
     const defaultFunnel = form.tipo_proyecto === 'ecommerce'
       ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
@@ -177,7 +197,11 @@ export default function ClienteForm({ cliente }: Props) {
       alertas_activas:    form.alertas_activas,
       gads_via_mcc:       form.gads_via_mcc,
       tipo_proyecto:      form.tipo_proyecto,
-      meta_events_config: { conversion_event: conversionEvent, funnel_steps: funnelSteps },
+      meta_events_config: {
+        conversion_event:  conversionEvents[0],   // backward compat
+        conversion_events: conversionEvents,
+        funnel_steps:      funnelSteps,
+      },
       ga4_property_id:       nullIfEmpty(form.ga4_property_id),
       ga4_account_id:        nullIfEmpty(form.ga4_account_id),
       ga4_conversion_events: nullIfEmpty(form.ga4_conversion_events),
@@ -379,36 +403,34 @@ export default function ClienteForm({ cliente }: Props) {
         <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-5">
           <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
 
-          {/* Main conversion event */}
+          {/* Conversion events — multi-select */}
           <div>
             <label className={labelCls}>
-              {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Evento de conversión (lead)'}
+              {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
             </label>
-            <select
-              value={form.meta_conversion_event}
-              onChange={set('meta_conversion_event')}
-              className={selectCls}
-            >
-              <option value="">
-                — Por defecto: {form.tipo_proyecto === 'ecommerce' ? 'Purchase' : 'Lead'} —
-              </option>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-2">
               {eventOptions.map(e => (
-                <option key={e.value} value={e.value}>{e.label}</option>
+                <label key={e.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.meta_conversion_events.includes(e.value)}
+                    onChange={() => toggleConversionEvent(e.value)}
+                    className="accent-[#F7415C]"
+                  />
+                  <span className="font-mono text-xs text-[#555555]">{e.label}</span>
+                </label>
               ))}
-              <option value="__custom">Otro (introducir manualmente)…</option>
-            </select>
-
-            {form.meta_conversion_event === '__custom' && (
-              <input
-                className={`${inputCls} mt-2`}
-                placeholder="Nombre del evento en Meta (ej: custom_lead)"
-                onBlur={e => setForm(f => ({ ...f, meta_conversion_event: e.target.value || '__custom' }))}
-                defaultValue=""
-              />
-            )}
-            <p className="mt-1 font-mono text-[9px] text-[#888888]">
-              Este evento se usa como conversión principal en todos los reportes de Meta Ads.
+            </div>
+            <p className="mt-2 font-mono text-[9px] text-[#888888]">
+              {form.tipo_proyecto === 'ecommerce'
+                ? 'Selecciona el evento principal de compra.'
+                : 'Selecciona uno o varios eventos — se sumarán como leads totales en todos los reportes.'}
             </p>
+            {form.meta_conversion_events.length > 1 && (
+              <p className="mt-1 font-mono text-[9px] text-[#1a7a4a]">
+                ✓ {form.meta_conversion_events.length} eventos seleccionados — se sumarán automáticamente
+              </p>
+            )}
           </div>
 
           {/* Funnel steps — all project types */}
