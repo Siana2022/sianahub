@@ -1,0 +1,172 @@
+{
+  "name": "SianaHub — Ingesta nightly",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule — 02:00 diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SIANAHUB_URL }}/api/ingesta/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "http-ingesta",
+      "name": "POST /api/ingesta/run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ingesta-secret-credential",
+          "name": "SianaHub Ingesta Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-errors",
+              "leftValue": "={{ $json.body.errors }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-errors",
+      "name": "¿Hay errores?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "body": {
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "={{ $env.SLACK_CHANNEL_ID }}"
+              },
+              {
+                "name": "text",
+                "value": "⚠️ *Ingesta SianaHub* — {{ $('POST /api/ingesta/run').item.json.body.errors }} error(s) en la ingesta nocturna. Procesados: {{ $('POST /api/ingesta/run').item.json.body.processed }}/{{ $('POST /api/ingesta/run').item.json.body.total }} clientes."
+              }
+            ]
+          }
+        },
+        "options": {}
+      },
+      "id": "slack-alert",
+      "name": "Slack — Alerta errores",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-bot-credential",
+          "name": "Slack Bot Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "body": {
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "={{ $env.SLACK_CHANNEL_ID }}"
+              },
+              {
+                "name": "text",
+                "value": "✅ *Ingesta SianaHub* completada — {{ $('POST /api/ingesta/run').item.json.body.processed }} cliente(s) actualizados sin errores."
+              }
+            ]
+          }
+        },
+        "options": {}
+      },
+      "id": "slack-ok",
+      "name": "Slack — Confirmación OK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-bot-credential",
+          "name": "Slack Bot Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule — 02:00 diario": {
+      "main": [
+        [{ "node": "POST /api/ingesta/run", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /api/ingesta/run": {
+      "main": [
+        [{ "node": "¿Hay errores?", "type": "main", "index": 0 }]
+      ]
+    },
+    "¿Hay errores?": {
+      "main": [
+        [{ "node": "Slack — Alerta errores", "type": "main", "index": 0 }],
+        [{ "node": "Slack — Confirmación OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["sianahub", "ingesta"]
+}
