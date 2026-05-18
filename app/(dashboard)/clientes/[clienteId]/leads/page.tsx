@@ -1,74 +1,117 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import KpiCard from '@/components/dashboard/KpiCard'
 import LineChart from '@/components/charts/LineChart'
-import { mockGA4Summary, mockAdsSummary, mockMetaSummary } from '@/lib/mock/metricas'
+import { Loader2 } from 'lucide-react'
+
+type DailyRow = { fecha: string; organico: number; meta: number }
+
+interface LeadsData {
+  total: number
+  total_prev: number
+  meta: number
+  organico: number
+  cpl_meta: number
+  cpl_meta_prev: number
+  daily: DailyRow[]
+  metaError?: string
+  ga4Error?: string
+}
 
 export default function LeadsPage() {
-  const ga4 = mockGA4Summary()
-  const ads = mockAdsSummary()
-  const meta = mockMetaSummary()
+  const { clienteId } = useParams<{ clienteId: string }>()
+  const [data,    setData]    = useState<LeadsData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const totalLeads = ga4.conversions + ads.conversions + meta.conversions
-  const totalPrev = (ga4.conversions_prev ?? 0) + (ads.conversions_prev ?? 0) + (meta.conversions_prev ?? 0)
+  useEffect(() => {
+    async function load() {
+      const [metaRes, ga4Res] = await Promise.allSettled([
+        fetch(`/api/clientes/${clienteId}/meta`).then(r => r.json()),
+        fetch(`/api/clientes/${clienteId}/ga4/trafico`).then(r => r.json()),
+      ])
 
-  // Combinar series diarias para el gráfico
-  const combined = ga4.daily.map((d, i) => ({
-    fecha: d.fecha,
-    organico: d.conversions,
-    google_ads: ads.daily[i]?.conversions ?? 0,
-    meta: meta.daily[i]?.conversions ?? 0,
-  }))
+      const meta = metaRes.status === 'fulfilled' && !metaRes.value.error ? metaRes.value : null
+      const ga4  = ga4Res.status  === 'fulfilled' && !ga4Res.value.error  ? ga4Res.value  : null
+
+      const metaConversions = meta?.summary?.conversions ?? 0
+      const ga4Conversions  = ga4?.summary?.conversions  ?? 0
+      const metaCpl         = meta?.summary?.cpl         ?? 0
+      const metaCplPrev     = meta?.summary?.cpl_prev    ?? 0
+
+      // Build daily combining GA4 + Meta by date
+      const ga4Daily:  { fecha: string; conversions: number }[] = ga4?.daily  ?? []
+      const metaDaily: { fecha: string; conversions: number }[] = meta?.daily ?? []
+
+      const dateMap = new Map<string, DailyRow>()
+      for (const d of ga4Daily)  dateMap.set(d.fecha, { fecha: d.fecha, organico: d.conversions, meta: 0 })
+      for (const d of metaDaily) {
+        const existing = dateMap.get(d.fecha)
+        if (existing) existing.meta = d.conversions
+        else dateMap.set(d.fecha, { fecha: d.fecha, organico: 0, meta: d.conversions })
+      }
+      const daily = [...dateMap.values()].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+      setData({
+        total:         metaConversions + ga4Conversions,
+        total_prev:    0,
+        meta:          metaConversions,
+        organico:      ga4Conversions,
+        cpl_meta:      metaCpl,
+        cpl_meta_prev: metaCplPrev,
+        daily,
+        metaError: metaRes.status === 'fulfilled' && metaRes.value.error ? metaRes.value.error : undefined,
+        ga4Error:  ga4Res.status  === 'fulfilled' && ga4Res.value.error  ? ga4Res.value.error  : undefined,
+      })
+      setLoading(false)
+    }
+    load()
+  }, [clienteId])
+
+  if (loading) return (
+    <div className="p-8 flex items-center gap-2">
+      <Loader2 className="w-4 h-4 animate-spin text-[#888888]" />
+      <span className="font-mono text-[10px] text-[#888888]">Cargando leads...</span>
+    </div>
+  )
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Leads totales" value={totalLeads} prev={totalPrev} />
-        <KpiCard label="Google Ads" value={ads.conversions} prev={ads.conversions_prev} />
-        <KpiCard label="Meta Ads" value={meta.conversions} prev={meta.conversions_prev} />
-        <KpiCard label="Orgánico" value={ga4.conversions} prev={ga4.conversions_prev} />
+    <div className="p-8 space-y-8">
+      <div className="flex items-baseline gap-4 pb-4 border-b-2 border-[#000000]">
+        <h2 className="font-display text-2xl font-bold">Leads</h2>
+        <span className="font-mono text-[10px] tracking-[2px] uppercase text-[#888888]">últimos 30 días</span>
       </div>
 
-      <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-        <h3 className="text-white text-sm font-medium mb-4">Leads por día — últimos 30 días</h3>
-        <LineChart
-          data={combined}
-          series={[
-            { key: 'organico', label: 'Orgánico', color: '#10b981' },
-            { key: 'google_ads', label: 'Google Ads', color: '#3b82f6' },
-            { key: 'meta', label: 'Meta', color: '#8b5cf6' },
-          ]}
-          height={280}
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#e8e8e8] border border-[#e8e8e8]">
+        <KpiCard label="Leads totales"  value={data!.total} />
+        <KpiCard label="Meta Ads"       value={data!.meta} />
+        <KpiCard label="Orgánico (GA4)" value={data!.organico} />
+        <KpiCard label="CPL Meta"       value={data!.cpl_meta > 0 ? `€${data!.cpl_meta.toFixed(2)}` : '—'} prev={data!.cpl_meta_prev} invertColors />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-          <h3 className="text-gray-400 text-xs uppercase tracking-wide mb-3">Google Ads</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-400">Leads</span><span className="text-white font-medium">{ads.conversions}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Inversión</span><span className="text-white font-medium">€{ads.spend.toFixed(0)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">CPL</span><span className="text-white font-medium">€{ads.cpl.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">ROAS</span><span className="text-white font-medium">{ads.roas.toFixed(2)}x</span></div>
-          </div>
+      {data!.daily.length > 0 && (
+        <div className="bg-white border border-[#e8e8e8] p-6">
+          <h3 className="font-display text-base font-bold mb-1">Evolución de leads</h3>
+          <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-5">por canal — 30 días</p>
+          <LineChart
+            data={data!.daily}
+            series={[
+              { key: 'meta',     label: 'Meta Ads',       color: '#1877f2' },
+              { key: 'organico', label: 'Orgánico (GA4)', color: '#1a7a4a' },
+            ]}
+            height={240}
+            formatY={v => String(Math.round(v))}
+          />
         </div>
-        <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-          <h3 className="text-gray-400 text-xs uppercase tracking-wide mb-3">Meta Ads</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-400">Leads</span><span className="text-white font-medium">{meta.conversions}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Inversión</span><span className="text-white font-medium">€{meta.spend.toFixed(0)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">CPL</span><span className="text-white font-medium">€{meta.cpl.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">CTR</span><span className="text-white font-medium">{meta.ctr.toFixed(2)}%</span></div>
-          </div>
+      )}
+
+      {(data?.metaError || data?.ga4Error) && (
+        <div className="space-y-1">
+          {data?.metaError && <p className="font-mono text-[9px] text-[#888888]">⚠ Meta Ads: {data.metaError}</p>}
+          {data?.ga4Error  && <p className="font-mono text-[9px] text-[#888888]">⚠ GA4: {data.ga4Error}</p>}
         </div>
-        <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-          <h3 className="text-gray-400 text-xs uppercase tracking-wide mb-3">Orgánico</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-400">Leads</span><span className="text-white font-medium">{ga4.conversions}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Sesiones</span><span className="text-white font-medium">{ga4.sessions.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Conv. rate</span><span className="text-white font-medium">{ga4.conversion_rate.toFixed(2)}%</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Rebote</span><span className="text-white font-medium">{ga4.bounce_rate.toFixed(1)}%</span></div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

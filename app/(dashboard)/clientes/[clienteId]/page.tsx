@@ -11,36 +11,48 @@ import { Pencil, Settings, X, Check } from 'lucide-react'
 type WidgetId =
   | 'ga4_sessions' | 'ga4_users' | 'ga4_conversions' | 'ga4_bounce' | 'ga4_duration'
   | 'gsc_clicks' | 'gsc_impressions' | 'gsc_ctr' | 'gsc_position'
+  | 'meta_spend' | 'meta_conversions' | 'meta_cpl' | 'meta_roas' | 'meta_clicks' | 'meta_ctr'
 
 interface WidgetDef {
   id: WidgetId
   label: string
-  group: 'GA4' | 'GSC'
+  group: 'GA4' | 'GSC' | 'Meta Ads'
   invertColors?: boolean
   getValue: (data: ResumenData) => string | number | null
   getPrev:  (data: ResumenData) => number | undefined
 }
 
 const WIDGETS: WidgetDef[] = [
+  // GA4
   { id: 'ga4_sessions',    label: 'Sesiones',       group: 'GA4', getValue: d => d.ga4?.sessions    ?? null, getPrev: d => d.ga4?.sessions_prev },
   { id: 'ga4_users',       label: 'Usuarios',        group: 'GA4', getValue: d => d.ga4?.users       ?? null, getPrev: d => d.ga4?.users_prev },
   { id: 'ga4_conversions', label: 'Conversiones',    group: 'GA4', getValue: d => d.ga4?.conversions  ?? null, getPrev: d => d.ga4?.conversions_prev },
   { id: 'ga4_bounce',      label: 'Tasa rebote',     group: 'GA4', invertColors: true, getValue: d => d.ga4 ? `${d.ga4.bounce_rate.toFixed(1)}%` : null, getPrev: d => undefined },
   { id: 'ga4_duration',    label: 'Duración media',  group: 'GA4', getValue: d => d.ga4 ? `${Math.round(d.ga4.avg_session_duration)}s` : null, getPrev: d => undefined },
+  // GSC
   { id: 'gsc_clicks',      label: 'Clicks GSC',      group: 'GSC', getValue: d => d.gsc?.clicks      ?? null, getPrev: d => d.gsc?.clicks_prev },
   { id: 'gsc_impressions', label: 'Impresiones GSC', group: 'GSC', getValue: d => d.gsc?.impressions  ?? null, getPrev: d => d.gsc?.impressions_prev },
   { id: 'gsc_ctr',         label: 'CTR medio',       group: 'GSC', getValue: d => d.gsc ? `${d.gsc.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
   { id: 'gsc_position',    label: 'Posición media',  group: 'GSC', invertColors: true, getValue: d => d.gsc ? d.gsc.position.toFixed(1) : null, getPrev: d => undefined },
+  // Meta Ads
+  { id: 'meta_spend',       label: 'Inversión Meta',   group: 'Meta Ads', getValue: d => d.meta ? `€${d.meta.spend.toFixed(0)}` : null, getPrev: d => d.meta?.spend_prev },
+  { id: 'meta_conversions', label: 'Leads Meta',        group: 'Meta Ads', getValue: d => d.meta?.conversions ?? null, getPrev: d => undefined },
+  { id: 'meta_cpl',         label: 'CPL Meta',          group: 'Meta Ads', invertColors: true, getValue: d => d.meta ? `€${d.meta.cpl.toFixed(2)}` : null, getPrev: d => d.meta?.cpl_prev },
+  { id: 'meta_roas',        label: 'ROAS Meta',         group: 'Meta Ads', getValue: d => d.meta && d.meta.roas > 0 ? `${d.meta.roas.toFixed(2)}x` : null, getPrev: d => undefined },
+  { id: 'meta_clicks',      label: 'Clicks Meta',       group: 'Meta Ads', getValue: d => d.meta?.clicks ?? null, getPrev: d => undefined },
+  { id: 'meta_ctr',         label: 'CTR Meta',          group: 'Meta Ads', getValue: d => d.meta ? `${d.meta.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
 ]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ResumenData {
-  widgets:  string[]
-  ga4:      { sessions: number; sessions_prev: number; users: number; users_prev: number; conversions: number; conversions_prev: number; bounce_rate: number; avg_session_duration: number } | null
-  gsc:      { clicks: number; clicks_prev: number; impressions: number; impressions_prev: number; ctr: number; position: number } | null
-  ga4Error: string | null
-  gscError: string | null
+  widgets:   string[]
+  ga4:       { sessions: number; sessions_prev: number; users: number; users_prev: number; conversions: number; conversions_prev: number; bounce_rate: number; avg_session_duration: number } | null
+  gsc:       { clicks: number; clicks_prev: number; impressions: number; impressions_prev: number; ctr: number; position: number } | null
+  meta:      { spend: number; spend_prev: number; conversions: number; cpl: number; cpl_prev: number; roas: number; clicks: number; ctr: number } | null
+  ga4Error:  string | null
+  gscError:  string | null
+  metaError: string | null
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -108,7 +120,7 @@ export default function ResumenPage() {
         </div>
       </div>
 
-      {/* KPI grid — only selected widgets */}
+      {/* KPI grid */}
       {activeWidgets.length === 0 ? (
         <div className="border border-dashed border-[#e8e8e8] p-10 text-center">
           <p className="font-mono text-[10px] uppercase tracking-wide text-[#888888] mb-3">Sin métricas seleccionadas</p>
@@ -134,27 +146,22 @@ export default function ResumenPage() {
               )
             }
             return (
-              <KpiCard
-                key={w.id}
-                label={w.label}
-                value={value}
-                prev={prev}
-                invertColors={w.invertColors}
-              />
+              <KpiCard key={w.id} label={w.label} value={value} prev={prev} invertColors={w.invertColors} />
             )
           })}
         </div>
       )}
 
       {/* Source errors */}
-      {(data?.ga4Error || data?.gscError) && (
-        <div className="space-y-2">
-          {data.ga4Error && <p className="font-mono text-[9px] text-[#F7415C]">⚠ GA4: {data.ga4Error}</p>}
-          {data.gscError && <p className="font-mono text-[9px] text-[#F7415C]">⚠ GSC: {data.gscError}</p>}
+      {(data?.ga4Error || data?.gscError || data?.metaError) && (
+        <div className="space-y-1">
+          {data?.ga4Error  && <p className="font-mono text-[9px] text-[#888888]">⚠ GA4: {data.ga4Error}</p>}
+          {data?.gscError  && <p className="font-mono text-[9px] text-[#888888]">⚠ GSC: {data.gscError}</p>}
+          {data?.metaError && <p className="font-mono text-[9px] text-[#888888]">⚠ Meta: {data.metaError}</p>}
         </div>
       )}
 
-      {/* ── Config panel ──────────────────────────────────────────────── */}
+      {/* Config panel */}
       {configOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/30" onClick={() => setConfigOpen(false)} />
@@ -167,7 +174,7 @@ export default function ResumenPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {(['GA4', 'GSC'] as const).map(group => (
+              {(['GA4', 'GSC', 'Meta Ads'] as const).map(group => (
                 <div key={group}>
                   <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-3">{group}</p>
                   <div className="space-y-1.5">
