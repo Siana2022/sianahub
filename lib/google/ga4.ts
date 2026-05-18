@@ -61,6 +61,47 @@ export async function fetchGA4Summary(propertyId: string) {
   }
 }
 
+// ── Summary with explicit date range ──────────────────────────────────────────
+
+export async function fetchGA4SummaryRange(propertyId: string, since: string, until: string) {
+  // Calculate prev period of same duration
+  const s = new Date(since)
+  const u = new Date(until)
+  const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
+  const prevUntilDate = new Date(s)
+  prevUntilDate.setDate(prevUntilDate.getDate() - 1)
+  const prevSinceDate = new Date(prevUntilDate)
+  prevSinceDate.setDate(prevSinceDate.getDate() - days + 1)
+  const prevSince = prevSinceDate.toISOString().slice(0, 10)
+  const prevUntil = prevUntilDate.toISOString().slice(0, 10)
+
+  const data = await ga4Fetch(propertyId, {
+    dateRanges: [dateRange(since, until), dateRange(prevSince, prevUntil)],
+    metrics: [
+      met('sessions'), met('activeUsers'), met('newUsers'),
+      met('conversions'), met('bounceRate'), met('averageSessionDuration'),
+    ],
+  })
+
+  const curr = data.rows?.[0]?.metricValues ?? []
+  const prev = data.rows?.[1]?.metricValues ?? []
+
+  const n = (i: number, rows: { value: string }[]) => parseFloat(rows[i]?.value ?? '0')
+
+  return {
+    sessions:              Math.round(n(0, curr)),
+    sessions_prev:         Math.round(n(0, prev)),
+    users:                 Math.round(n(1, curr)),
+    users_prev:            Math.round(n(1, prev)),
+    new_users:             Math.round(n(2, curr)),
+    conversions:           Math.round(n(3, curr)),
+    conversions_prev:      Math.round(n(3, prev)),
+    bounce_rate:           n(4, curr) * 100,
+    avg_session_duration:  n(5, curr),
+    conversion_rate:       curr[0]?.value ? (n(3, curr) / n(0, curr)) * 100 : 0,
+  }
+}
+
 // ── Daily (últimos 30 días) ────────────────────────────────────────────────────
 
 export async function fetchGA4Daily(propertyId: string) {

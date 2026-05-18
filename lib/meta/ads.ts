@@ -78,6 +78,13 @@ export interface MetaDailyRow {
   revenue:     number
 }
 
+// ── DateRange ──────────────────────────────────────────────────────────────────
+
+export interface DateRange {
+  since: string  // YYYY-MM-DD
+  until: string  // YYYY-MM-DD
+}
+
 // ── Defaults ───────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: Required<MetaEventsConfig> = {
@@ -101,6 +108,21 @@ function dateRange(daysAgo: number) {
   return {
     since: start.toISOString().slice(0, 10),
     until: end.toISOString().slice(0, 10),
+  }
+}
+
+/** Given a since/until range, compute a previous period of equal duration */
+function prevDateRange(since: string, until: string): DateRange {
+  const s = new Date(since)
+  const u = new Date(until)
+  const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
+  const prevUntil = new Date(s)
+  prevUntil.setDate(prevUntil.getDate() - 1)
+  const prevSince = new Date(prevUntil)
+  prevSince.setDate(prevSince.getDate() - days + 1)
+  return {
+    since: prevSince.toISOString().slice(0, 10),
+    until: prevUntil.toISOString().slice(0, 10),
   }
 }
 
@@ -167,22 +189,32 @@ function buildFunnel(actions: ActionRow[], actionValues: ActionRow[], funnelStep
 
 export async function fetchMetaSummary(
   adAccountId: string,
-  config?: MetaEventsConfig
+  config?: MetaEventsConfig,
+  customRange?: DateRange
 ): Promise<MetaSummary> {
   const cfg    = resolveConfig(config)
   const fields = 'spend,impressions,clicks,reach,actions,action_values'
-  const range30 = dateRange(30)
-  const range60 = dateRange(60)
+
+  let currRange: DateRange
+  let prevRange: DateRange
+  if (customRange) {
+    currRange = customRange
+    prevRange = prevDateRange(customRange.since, customRange.until)
+  } else {
+    currRange = dateRange(30)
+    const range60 = dateRange(60)
+    prevRange = { since: range60.since, until: currRange.since }
+  }
 
   const [curr, prev] = await Promise.all([
     metaFetch(`/act_${adAccountId}/insights`, {
       fields,
-      time_range: JSON.stringify({ since: range30.since, until: range30.until }),
+      time_range: JSON.stringify({ since: currRange.since, until: currRange.until }),
       level: 'account',
     }),
     metaFetch(`/act_${adAccountId}/insights`, {
       fields,
-      time_range: JSON.stringify({ since: range60.since, until: range30.since }),
+      time_range: JSON.stringify({ since: prevRange.since, until: prevRange.until }),
       level: 'account',
     }),
   ])
@@ -221,10 +253,11 @@ export async function fetchMetaSummary(
 
 export async function fetchMetaCampaigns(
   adAccountId: string,
-  config?: MetaEventsConfig
+  config?: MetaEventsConfig,
+  customRange?: DateRange
 ): Promise<MetaCampaign[]> {
   const cfg   = resolveConfig(config)
-  const range = dateRange(30)
+  const range = customRange ?? dateRange(30)
   const data  = await metaFetch(`/act_${adAccountId}/campaigns`, {
     fields:     'id,name,status,objective,insights{spend,impressions,clicks,reach,actions,action_values}',
     time_range: JSON.stringify({ since: range.since, until: range.until }),
@@ -261,10 +294,11 @@ export async function fetchMetaCampaigns(
 
 export async function fetchMetaDaily(
   adAccountId: string,
-  config?: MetaEventsConfig
+  config?: MetaEventsConfig,
+  customRange?: DateRange
 ): Promise<MetaDailyRow[]> {
   const cfg   = resolveConfig(config)
-  const range = dateRange(30)
+  const range = customRange ?? dateRange(30)
   const data  = await metaFetch(`/act_${adAccountId}/insights`, {
     fields:         'spend,impressions,clicks,actions,action_values',
     time_range:     JSON.stringify({ since: range.since, until: range.until }),

@@ -56,6 +56,38 @@ export async function fetchGSCSummary(siteUrl: string) {
   }
 }
 
+export async function fetchGSCSummaryRange(siteUrl: string, since: string, until: string) {
+  // Calculate prev period of same duration
+  const s = new Date(since)
+  const u = new Date(until)
+  const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
+  const prevUntilDate = new Date(s)
+  prevUntilDate.setDate(prevUntilDate.getDate() - 1)
+  const prevSinceDate = new Date(prevUntilDate)
+  prevSinceDate.setDate(prevSinceDate.getDate() - days + 1)
+  const prevSince = prevSinceDate.toISOString().slice(0, 10)
+  const prevUntil = prevUntilDate.toISOString().slice(0, 10)
+
+  const [curr, prev] = await Promise.all([
+    gscFetch(siteUrl, { startDate: since, endDate: until }),
+    gscFetch(siteUrl, { startDate: prevSince, endDate: prevUntil }),
+  ])
+
+  const c: GscRow = curr.rows?.[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 }
+  const p: GscRow = prev.rows?.[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 }
+
+  return {
+    clicks:           Math.round(c.clicks),
+    clicks_prev:      Math.round(p.clicks),
+    impressions:      Math.round(c.impressions),
+    impressions_prev: Math.round(p.impressions),
+    ctr:              c.ctr * 100,
+    ctr_prev:         p.ctr * 100,
+    position:         c.position,
+    position_prev:    p.position,
+  }
+}
+
 export async function fetchGSCDaily(siteUrl: string) {
   const data = await gscFetch(siteUrl, {
     startDate:  dateNDaysAgo(29),
