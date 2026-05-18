@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SIANAHUB_URL }}/api/ingesta/run",
+        "url": "https://sianahub.sianadigital.com/api/ingesta/run",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -84,7 +84,7 @@
             "parameters": [
               {
                 "name": "channel",
-                "value": "={{ $env.SLACK_CHANNEL_ID }}"
+                "value": "C0B42SDD7SP"
               },
               {
                 "name": "text",
@@ -118,7 +118,7 @@
             "parameters": [
               {
                 "name": "channel",
-                "value": "={{ $env.SLACK_CHANNEL_ID }}"
+                "value": "C0B42SDD7SP"
               },
               {
                 "name": "text",
