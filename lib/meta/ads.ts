@@ -80,15 +80,13 @@ function parseInsights(data: Record<string, string>[]): {
     ? (row.actions as { action_type: string; value: string }[])
     : []
 
-  const leadCount = actions.find(a => a.action_type === 'lead')
+  // Only count 'lead' action type to match Meta Business Manager "Resultados" column.
+  // Meta reports both 'lead' (Lead Ads) and 'offsite_conversion.fb_pixel_lead' (pixel) —
+  // prefer 'lead', fall back to pixel lead if not present.
+  const leadCount      = actions.find(a => a.action_type === 'lead')
   const pixelLeadCount = actions.find(a => a.action_type === 'offsite_conversion.fb_pixel_lead')
-  const purchaseCount = actions.find(a => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
-  const registrationCount = actions.find(a => a.action_type === 'complete_registration')
 
-  const conversions =
-    parseFloat(leadCount?.value ?? pixelLeadCount?.value ?? '0') +
-    parseFloat(purchaseCount?.value ?? '0') +
-    parseFloat(registrationCount?.value ?? '0')
+  const conversions = parseFloat(leadCount?.value ?? pixelLeadCount?.value ?? '0')
   return {
     spend:       parseFloat(row.spend ?? '0'),
     impressions: parseInt(row.impressions ?? '0'),
@@ -186,11 +184,9 @@ export async function fetchMetaDaily(adAccountId: string): Promise<MetaDailyRow[
   })
 
   return (data.data ?? []).map((row: Record<string, unknown>) => {
-    const conversions = Array.isArray(row.actions)
-      ? (row.actions as { action_type: string; value: string }[])
-          .filter(a => ['lead', 'purchase', 'complete_registration'].includes(a.action_type))
-          .reduce((sum, a) => sum + parseFloat(a.value), 0)
-      : 0
+    const acts = Array.isArray(row.actions) ? (row.actions as { action_type: string; value: string }[]) : []
+    const leadAct = acts.find(a => a.action_type === 'lead') ?? acts.find(a => a.action_type === 'offsite_conversion.fb_pixel_lead')
+    const conversions = parseFloat(leadAct?.value ?? '0')
     return {
       fecha:       row.date_start as string,
       spend:       parseFloat(row.spend as string ?? '0'),
