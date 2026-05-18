@@ -3,9 +3,11 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const metaEventsConfigSchema = z.object({
-  conversion_event:  z.string().optional(),
-  conversion_events: z.array(z.string()).optional(),
-  funnel_steps:      z.array(z.string()).optional(),
+  conversion_event:        z.string().optional(),
+  conversion_events:       z.array(z.string()).optional(),
+  breakdown_events:        z.array(z.string()).optional(),
+  breakdown_event_labels:  z.record(z.string()).optional(),
+  funnel_steps:            z.array(z.string()).optional(),
 })
 
 const updateSchema = z.object({

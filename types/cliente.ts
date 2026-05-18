@@ -1,11 +1,15 @@
 export type TipoProyecto = 'leads' | 'ecommerce'
 
 export interface MetaEventsConfig {
-  /** Main conversion action type (single, backward compat) */
+  /** Primary conversion event for CPL/ROAS calculation (single) */
   conversion_event?: string
-  /** Multiple conversion events to sum as total conversions — takes priority over conversion_event */
+  /** Legacy: multiple events summed — kept for backward compat only */
   conversion_events?: string[]
-  /** Funnel steps to display, e.g. ["view_content","add_to_cart","initiate_checkout","purchase"] */
+  /** Breakdown events shown individually as attribution (NOT summed into total) */
+  breakdown_events?: string[]
+  /** Human-readable labels for breakdown events: eventKey → label */
+  breakdown_event_labels?: Record<string, string>
+  /** Funnel steps to display */
   funnel_steps?: string[]
 }
 

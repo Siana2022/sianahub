@@ -17,7 +17,8 @@ interface FormState {
   nombre: string; dominio: string; estado: 'active' | 'paused' | 'churned'
   notas: string; alertas_activas: boolean; gads_via_mcc: boolean
   tipo_proyecto: TipoProyecto
-  meta_conversion_events: string[]
+  meta_primary_event: string       // single event → total leads, CPL, ROAS
+  meta_breakdown_events: string[]  // individual display, NOT summed
   meta_funnel_steps: string[]
   ga4_property_id: string; ga4_account_id: string; gads_customer_id: string
   ga4_conversion_events: string
@@ -81,12 +82,11 @@ function toFormState(c?: Cliente): FormState {
     alertas_activas:       c?.alertas_activas       ?? true,
     gads_via_mcc:          c?.gads_via_mcc          ?? true,
     tipo_proyecto:          c?.tipo_proyecto ?? 'leads',
-    // Read from conversion_events array first; fall back to wrapping single conversion_event
-    meta_conversion_events: c?.meta_events_config?.conversion_events?.length
-      ? c.meta_events_config.conversion_events
-      : c?.meta_events_config?.conversion_event
-        ? [c.meta_events_config.conversion_event]
-        : [],
+    // Primary event: conversion_event first, then first of conversion_events
+    meta_primary_event: c?.meta_events_config?.conversion_event
+      ?? c?.meta_events_config?.conversion_events?.[0]
+      ?? '',
+    meta_breakdown_events: c?.meta_events_config?.breakdown_events ?? [],
     meta_funnel_steps:      c?.meta_events_config?.funnel_steps ??
       (c?.tipo_proyecto === 'ecommerce' ? DEFAULT_FUNNEL_STEPS_ECOMMERCE : DEFAULT_FUNNEL_STEPS_LEADS),
     ga4_property_id:       c?.ga4_property_id       ?? '',
@@ -157,54 +157,103 @@ function EventRow({
   )
 }
 
-function ConversionEventsSelector({
-  accountId, tipoProyecto, selected, metaEvents, metaEventsLoading, metaEventsError,
-  fallbackOptions, onDetect, onToggle,
+/** Selector de evento principal (radio) + desglose (checkboxes) */
+function MetaEventsConfig({
+  accountId, tipoProyecto,
+  primaryEvent, breakdownEvents,
+  metaEvents, metaEventsLoading, metaEventsError,
+  fallbackOptions,
+  onDetect, onSetPrimary, onToggleBreakdown,
 }: {
   accountId:          string
   tipoProyecto:       TipoProyecto
-  selected:           string[]
+  primaryEvent:       string
+  breakdownEvents:    string[]
   metaEvents:         MetaEvent[] | null
   metaEventsLoading:  boolean
   metaEventsError:    string | null
   fallbackOptions:    { value: string; label: string }[]
   onDetect:           () => void
-  onToggle:           (v: string) => void
+  onSetPrimary:       (v: string) => void
+  onToggleBreakdown:  (v: string) => void
 }) {
-  const isEcommerce = tipoProyecto === 'ecommerce'
-
-  // Build the full display list
-  const detected = metaEvents ?? []
+  const isEcommerce   = tipoProyecto === 'ecommerce'
+  const detected      = metaEvents ?? []
+  const usingDetected = detected.length > 0
   const detectedValues = new Set(detected.map(e => e.value))
 
-  // Filter standard events by project type
   const filteredDetected = detected.filter(e =>
     e.type === 'custom' || isEcommerce || !ECOMMERCE_ONLY.has(e.value)
   )
-
-  // Any previously saved events not found in current detection (show them at top)
-  const orphaned: MetaEvent[] = selected
-    .filter(v => !detectedValues.has(v))
-    .map(v => ({ value: v, label: v, type: 'standard' as const }))
-
-  // When no detection yet: show filtered hardcoded fallback
-  const fallback = fallbackOptions
+  const fallback       = fallbackOptions
     .filter(e => isEcommerce || !ECOMMERCE_ONLY.has(e.value))
     .map(e => ({ ...e, type: 'standard' as const }))
+  const displayList    = usingDetected ? filteredDetected : fallback
+  const standardList   = displayList.filter(e => e.type === 'standard')
+  const customList     = displayList.filter(e => e.type === 'custom')
 
-  const standardList = filteredDetected.filter(e => e.type === 'standard')
-  const customList   = filteredDetected.filter(e => e.type === 'custom')
-  const usingDetected = detected.length > 0
+  // Orphaned: saved events not found in current detection
+  const allSaved   = primaryEvent ? [primaryEvent, ...breakdownEvents] : breakdownEvents
+  const orphaned   = allSaved
+    .filter(v => !detectedValues.has(v))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .map(v => ({ value: v, label: v, type: 'standard' as const }))
 
-  const labelCls = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
+  const sectionLabel = "block font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-1.5"
+
+  function renderEventList(list: MetaEvent[], mode: 'radio' | 'checkbox') {
+    return (
+      <div className="space-y-1">
+        {list.map(e => {
+          if (mode === 'radio') {
+            const checked = primaryEvent === e.value
+            return (
+              <label
+                key={e.value}
+                className={`flex items-center gap-3 px-3 py-2 border cursor-pointer transition-colors ${
+                  checked ? 'border-[#1877f2] bg-[#1877f2]' : 'border-[#e8e8e8] hover:border-[#555555]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="meta_primary_event"
+                  checked={checked}
+                  onChange={() => onSetPrimary(e.value)}
+                  className="accent-[#1877f2] shrink-0"
+                />
+                <span className={`font-mono text-xs flex-1 ${checked ? 'text-white' : 'text-[#000000]'}`}>
+                  {e.label}
+                </span>
+                {e.count !== undefined && e.count > 0 && (
+                  <span className={`font-mono text-[9px] px-1.5 py-0.5 ${checked ? 'bg-white/20 text-white' : 'bg-[#f0f0f0] text-[#888888]'}`}>
+                    {e.count.toLocaleString('es-ES')} eventos/año
+                  </span>
+                )}
+                {e.type === 'custom' && (
+                  <span className={`font-mono text-[9px] px-1.5 py-0.5 ${checked ? 'bg-white/20 text-white' : 'bg-[#fef8ed] text-[#d4820a]'}`}>custom</span>
+                )}
+              </label>
+            )
+          } else {
+            return (
+              <EventRow
+                key={e.value}
+                event={e}
+                checked={breakdownEvents.includes(e.value)}
+                onToggle={() => onToggleBreakdown(e.value)}
+              />
+            )
+          }
+        })}
+      </div>
+    )
+  }
 
   return (
-    <div>
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
-        <label className={labelCls + ' mb-0'}>
-          {isEcommerce ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
-        </label>
+    <div className="space-y-6">
+      {/* Detect button */}
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
         <button
           type="button"
           onClick={onDetect}
@@ -213,75 +262,82 @@ function ConversionEventsSelector({
         >
           {metaEventsLoading
             ? <><span className="inline-block w-2.5 h-2.5 border border-t-transparent rounded-full animate-spin" />Detectando…</>
-            : <>↻ Detectar eventos de la cuenta</>
-          }
+            : <>↻ Detectar eventos de la cuenta</>}
         </button>
       </div>
 
-      {/* No account ID */}
       {!accountId.trim() && (
-        <p className="mb-3 font-mono text-[9px] text-[#888888]">
-          Introduce el Ad Account ID para detectar los eventos reales de esta cuenta.
-        </p>
+        <p className="font-mono text-[9px] text-[#888888]">Introduce el Ad Account ID para detectar los eventos reales de esta cuenta.</p>
       )}
-
-      {/* Error */}
       {metaEventsError && (
-        <p className="mb-3 font-mono text-[9px] text-[#F7415C]">Error: {metaEventsError}</p>
+        <p className="font-mono text-[9px] text-[#F7415C]">Error: {metaEventsError}</p>
       )}
 
-      {/* Orphaned (previously saved, not in current detection) */}
-      {orphaned.length > 0 && (
-        <div className="mb-3">
-          <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Guardados anteriormente</p>
-          <div className="space-y-1">
-            {orphaned.map(e => (
-              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── EVENTO PRINCIPAL ────────────────────────────── */}
+      <div>
+        <label className={sectionLabel}>Evento principal — total leads &amp; CPL</label>
+        <p className="font-mono text-[9px] text-[#888888] mb-2">Un solo evento. Define el total de leads para CPL y ROAS.</p>
 
-      {/* Standard events */}
-      {(usingDetected ? standardList : fallback).length > 0 && (
-        <div className="mb-3">
-          {usingDetected && (
-            <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Eventos estándar</p>
-          )}
-          <div className="space-y-1">
-            {(usingDetected ? standardList : fallback).map(e => (
-              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
-            ))}
+        {orphaned.filter(o => o.value === primaryEvent).length > 0 && (
+          <div className="mb-2">
+            {renderEventList(orphaned.filter(o => o.value === primaryEvent), 'radio')}
           </div>
-        </div>
-      )}
+        )}
+        {standardList.length > 0 && (
+          <div className="mb-2">
+            {usingDetected && <p className={sectionLabel}>Eventos estándar</p>}
+            {renderEventList(standardList, 'radio')}
+          </div>
+        )}
+        {customList.length > 0 && (
+          <div>
+            {usingDetected && <p className={sectionLabel}>Conversiones personalizadas</p>}
+            {renderEventList(customList, 'radio')}
+          </div>
+        )}
 
-      {/* Custom conversions */}
-      {usingDetected && customList.length > 0 && (
-        <div className="mb-3">
-          <p className="font-mono text-[9px] text-[#888888] uppercase tracking-wide mb-1.5">Conversiones personalizadas</p>
-          <div className="space-y-1">
-            {customList.map(e => (
-              <EventRow key={e.value} event={e} checked={selected.includes(e.value)} onToggle={() => onToggle(e.value)} />
-            ))}
+        {primaryEvent && (
+          <p className="mt-2 font-mono text-[9px] text-[#1877f2]">
+            ✓ Evento principal: {displayList.find(e => e.value === primaryEvent)?.label ?? primaryEvent}
+          </p>
+        )}
+      </div>
+
+      {/* ── EVENTOS DE DESGLOSE ─────────────────────────── */}
+      <div>
+        <label className={sectionLabel}>Desglose por origen — informativo</label>
+        <p className="font-mono text-[9px] text-[#888888] mb-2">
+          Múltiple selección. Se muestran individualmente bajo los KPIs para ver de dónde viene cada lead. No afectan al total ni al CPL.
+        </p>
+
+        {orphaned.filter(o => o.value !== primaryEvent).length > 0 && (
+          <div className="mb-2">
+            {renderEventList(orphaned.filter(o => o.value !== primaryEvent), 'checkbox')}
           </div>
-        </div>
-      )}
+        )}
+        {standardList.length > 0 && (
+          <div className="mb-2">
+            {usingDetected && <p className={sectionLabel}>Eventos estándar</p>}
+            {renderEventList(standardList, 'checkbox')}
+          </div>
+        )}
+        {customList.length > 0 && (
+          <div>
+            {usingDetected && <p className={sectionLabel}>Conversiones personalizadas</p>}
+            {renderEventList(customList, 'checkbox')}
+          </div>
+        )}
+
+        {breakdownEvents.length > 0 && (
+          <p className="mt-2 font-mono text-[9px] text-[#1a7a4a]">
+            ✓ {breakdownEvents.length} evento{breakdownEvents.length !== 1 ? 's' : ''} de desglose seleccionado{breakdownEvents.length !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
 
       {usingDetected && (
         <p className="font-mono text-[9px] text-[#888888]">
           {detected.length} evento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} en la cuenta
-        </p>
-      )}
-
-      <p className="mt-2 font-mono text-[9px] text-[#888888]">
-        {isEcommerce
-          ? 'Selecciona el evento principal de compra.'
-          : 'Selecciona uno o varios — se sumarán como leads totales en todos los reportes.'}
-      </p>
-      {selected.length > 1 && (
-        <p className="mt-1 font-mono text-[9px] text-[#1a7a4a]">
-          ✓ {selected.length} eventos seleccionados — se sumarán automáticamente
         </p>
       )}
     </div>
@@ -331,9 +387,10 @@ export default function ClienteForm({ cliente }: Props) {
   function handleTipoProyecto(tipo: TipoProyecto) {
     setForm(f => ({
       ...f,
-      tipo_proyecto:          tipo,
-      meta_conversion_events: [],
-      meta_funnel_steps:      tipo === 'ecommerce'
+      tipo_proyecto:         tipo,
+      meta_primary_event:    '',
+      meta_breakdown_events: [],
+      meta_funnel_steps:     tipo === 'ecommerce'
         ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
         : DEFAULT_FUNNEL_STEPS_LEADS,
     }))
@@ -356,12 +413,16 @@ export default function ClienteForm({ cliente }: Props) {
     }
   }
 
-  function toggleConversionEvent(evt: string) {
+  function setPrimaryEvent(evt: string) {
+    setForm(f => ({ ...f, meta_primary_event: evt }))
+  }
+
+  function toggleBreakdownEvent(evt: string) {
     setForm(f => {
-      const curr = f.meta_conversion_events
+      const curr = f.meta_breakdown_events
       return {
         ...f,
-        meta_conversion_events: curr.includes(evt)
+        meta_breakdown_events: curr.includes(evt)
           ? curr.filter(e => e !== evt)
           : [...curr, evt],
       }
@@ -391,11 +452,9 @@ export default function ClienteForm({ cliente }: Props) {
     e.preventDefault()
     setLoading(true); setError(null)
 
-    // Resolve conversion events — default to single event if nothing selected
+    // Resolve primary event — default if nothing selected
     const defaultEvent = form.tipo_proyecto === 'ecommerce' ? DEFAULT_PURCHASE_EVENT : DEFAULT_LEAD_EVENT
-    const conversionEvents = form.meta_conversion_events.length > 0
-      ? form.meta_conversion_events
-      : [defaultEvent]
+    const primaryEvent = form.meta_primary_event || defaultEvent
 
     const defaultFunnel = form.tipo_proyecto === 'ecommerce'
       ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
@@ -403,6 +462,14 @@ export default function ClienteForm({ cliente }: Props) {
     const funnelSteps = form.meta_funnel_steps.length > 0
       ? form.meta_funnel_steps
       : defaultFunnel
+
+    // Build label map from detected events (keep existing labels too)
+    const savedLabels = cliente?.meta_events_config?.breakdown_event_labels ?? {}
+    const detectedLabels: Record<string, string> = {}
+    for (const evt of (metaEvents ?? [])) {
+      detectedLabels[evt.value] = evt.label
+    }
+    const breakdownEventLabels = { ...savedLabels, ...detectedLabels }
 
     const payload = {
       nombre:             form.nombre,
@@ -413,9 +480,10 @@ export default function ClienteForm({ cliente }: Props) {
       gads_via_mcc:       form.gads_via_mcc,
       tipo_proyecto:      form.tipo_proyecto,
       meta_events_config: {
-        conversion_event:  conversionEvents[0],   // backward compat
-        conversion_events: conversionEvents,
-        funnel_steps:      funnelSteps,
+        conversion_event:       primaryEvent,
+        breakdown_events:       form.meta_breakdown_events,
+        breakdown_event_labels: breakdownEventLabels,
+        funnel_steps:           funnelSteps,
       },
       ga4_property_id:       nullIfEmpty(form.ga4_property_id),
       ga4_account_id:        nullIfEmpty(form.ga4_account_id),
@@ -616,19 +684,18 @@ export default function ClienteForm({ cliente }: Props) {
 
         {/* Event config */}
         <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-5">
-          <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
-
-          {/* Conversion events — dynamic from Meta API */}
-          <ConversionEventsSelector
+          <MetaEventsConfig
             accountId={form.meta_ad_account_id}
             tipoProyecto={form.tipo_proyecto}
-            selected={form.meta_conversion_events}
+            primaryEvent={form.meta_primary_event}
+            breakdownEvents={form.meta_breakdown_events}
             metaEvents={metaEvents}
             metaEventsLoading={metaEventsLoading}
             metaEventsError={metaEventsError}
             fallbackOptions={eventOptions}
             onDetect={() => detectMetaEvents()}
-            onToggle={toggleConversionEvent}
+            onSetPrimary={setPrimaryEvent}
+            onToggleBreakdown={toggleBreakdownEvent}
           />
 
           {/* Funnel steps — all project types */}

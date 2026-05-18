@@ -36,13 +36,15 @@ export interface MetaSummary {
   cpc:          number
   cpp:          number
   reach:        number
-  // Main conversions (sum of all configured conversion_events)
+  // Main conversion (single primary event for CPL/ROAS)
   conversions:  number
   conversions_prev: number
-  cpl:          number       // cost per conversion
+  cpl:          number
   cpl_prev:     number
-  // Per-event breakdown: event_name → count
+  // Legacy multi-event breakdown (kept for compat)
   conversion_breakdown: Record<string, number>
+  // Breakdown events: individual counts for attribution display
+  breakdown: Record<string, number>
   // Revenue / ecommerce
   roas:         number
   revenue:      number
@@ -99,20 +101,20 @@ const DEFAULT_CONFIG = {
 interface ResolvedConfig {
   conversion_event:  string
   conversion_events: string[]
+  breakdown_events:  string[]
   funnel_steps:      string[]
 }
 
 function resolveConfig(config?: MetaEventsConfig): ResolvedConfig {
-  // conversion_events (array) takes priority over legacy conversion_event (single)
-  const events = config?.conversion_events?.length
-    ? config.conversion_events
-    : config?.conversion_event
-      ? [config.conversion_event]
-      : DEFAULT_CONFIG.conversion_events
+  // Primary: conversion_event takes priority; fall back to first of conversion_events
+  const primaryEvent = config?.conversion_event
+    ?? config?.conversion_events?.[0]
+    ?? DEFAULT_CONFIG.conversion_event
 
   return {
-    conversion_event:  events[0],
-    conversion_events: events,
+    conversion_event:  primaryEvent,
+    conversion_events: [primaryEvent],
+    breakdown_events:  config?.breakdown_events ?? [],
     funnel_steps:      config?.funnel_steps ?? DEFAULT_CONFIG.funnel_steps,
   }
 }
@@ -245,14 +247,19 @@ export async function fetchMetaSummary(
   const c = parseInsightsFull(curr.data ?? [])
   const p = parseInsightsFull(prev.data ?? [])
 
-  // Main conversions: sum all configured conversion events
-  const convCurr = sumActions(c.actions, cfg.conversion_events)
-  const convPrev = sumActions(p.actions, cfg.conversion_events)
+  // Main conversions: single primary event
+  const convCurr = getAction(c.actions, cfg.conversion_event, pixelFallback(cfg.conversion_event))
+  const convPrev = getAction(p.actions, cfg.conversion_event, pixelFallback(cfg.conversion_event))
 
-  // Per-event breakdown for transparency
-  const conversion_breakdown: Record<string, number> = {}
-  for (const evt of cfg.conversion_events) {
-    conversion_breakdown[evt] = getAction(c.actions, evt, pixelFallback(evt))
+  // Legacy conversion_breakdown (kept for compat — same as primary)
+  const conversion_breakdown: Record<string, number> = {
+    [cfg.conversion_event]: convCurr,
+  }
+
+  // Breakdown events: individual counts, NOT summed into total
+  const breakdown: Record<string, number> = {}
+  for (const evt of cfg.breakdown_events) {
+    breakdown[evt] = getAction(c.actions, evt, pixelFallback(evt))
   }
 
   const funnel     = buildFunnel(c.actions, c.actionValues, cfg.funnel_steps)
@@ -269,6 +276,7 @@ export async function fetchMetaSummary(
     cpl:                  convCurr > 0 ? c.spend / convCurr : 0,
     cpl_prev:             convPrev > 0 ? p.spend / convPrev : 0,
     conversion_breakdown,
+    breakdown,
     purchases:            funnel.purchases,
     revenue:              funnel.revenue,
     revenue_prev:         funnelPrev.revenue,

@@ -37,8 +37,10 @@ export async function GET(
       summary,
       campaigns,
       daily,
-      tipo_proyecto: tipoProyecto,
-      funnel_steps:  config.funnel_steps ?? [],
+      tipo_proyecto:          tipoProyecto,
+      funnel_steps:           config.funnel_steps ?? [],
+      breakdown_events:       config.breakdown_events ?? [],
+      breakdown_event_labels: config.breakdown_event_labels ?? {},
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido'

@@ -14,6 +14,7 @@ type Summary = {
   ctr: number; cpc: number; cpp: number
   roas: number; revenue: number; revenue_prev: number; purchases: number
   conversion_breakdown: Record<string, number>
+  breakdown: Record<string, number>
   funnel: Funnel
 }
 type Campaign = {
@@ -41,10 +42,12 @@ export default function MetaAdsPage() {
   const [summary,      setSummary]      = useState<Summary | null>(null)
   const [campaigns,    setCampaigns]    = useState<Campaign[]>([])
   const [daily,        setDaily]        = useState<DailyRow[]>([])
-  const [tipoProyecto, setTipoProyecto] = useState<TipoProyecto>('leads')
-  const [funnelSteps,  setFunnelSteps]  = useState<string[]>([])
-  const [error,        setError]        = useState<string | null>(null)
-  const [loading,      setLoading]      = useState(true)
+  const [tipoProyecto,         setTipoProyecto]         = useState<TipoProyecto>('leads')
+  const [funnelSteps,          setFunnelSteps]          = useState<string[]>([])
+  const [breakdownEvents,      setBreakdownEvents]      = useState<string[]>([])
+  const [breakdownEventLabels, setBreakdownEventLabels] = useState<Record<string, string>>({})
+  const [error,                setError]                = useState<string | null>(null)
+  const [loading,              setLoading]              = useState(true)
 
   useEffect(() => {
     async function load() {
@@ -57,6 +60,8 @@ export default function MetaAdsPage() {
         setDaily(data.daily)
         setTipoProyecto(data.tipo_proyecto ?? 'leads')
         setFunnelSteps(data.funnel_steps ?? [])
+        setBreakdownEvents(data.breakdown_events ?? [])
+        setBreakdownEventLabels(data.breakdown_event_labels ?? {})
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Error desconocido')
       } finally {
@@ -148,27 +153,26 @@ export default function MetaAdsPage() {
             <KpiCard label="CPL"          value={`€${summary!.cpl.toFixed(2)}`}         prev={summary!.cpl_prev} invertColors />
             <KpiCard label="ROAS"         value={summary!.roas > 0 ? `${summary!.roas.toFixed(2)}x` : '—'} />
           </div>
-          {/* Conversion breakdown — show when multiple events contribute to the total */}
-          {Object.keys(summary!.conversion_breakdown).length > 1 && (
-            <div className="flex flex-wrap gap-2 -mt-4">
-              {Object.entries(summary!.conversion_breakdown)
-                .filter(([, v]) => v > 0)
-                .map(([evt, count]) => {
-                  const shortEvt = evt.startsWith('offsite_conversion.custom.')
-                    ? evt  // custom: shown with raw key (no label available here)
-                    : evt
-                  const label = EVENT_LABELS[shortEvt] ?? shortEvt
+
+          {/* Breakdown por origen — sólo si hay eventos de desglose configurados */}
+          {breakdownEvents.length > 0 && (
+            <div className="bg-white border border-[#e8e8e8] p-5">
+              <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-4">Desglose por origen de lead</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-px bg-[#e8e8e8]">
+                {breakdownEvents.map(evt => {
+                  const count = summary!.breakdown[evt] ?? 0
+                  const label = breakdownEventLabels[evt] ?? EVENT_LABELS[evt] ?? evt
                   return (
-                    <span key={evt} className="font-mono text-[10px] px-2 py-1 bg-white border border-[#e8e8e8] text-[#555555]">
-                      {label}: <span className="font-bold text-[#000000]">{count}</span>
-                    </span>
+                    <div key={evt} className="bg-white p-4">
+                      <p className="font-mono text-[9px] tracking-[1px] uppercase text-[#888888] mb-1 truncate" title={label}>{label}</p>
+                      <p className="font-display text-2xl font-bold">{count.toLocaleString()}</p>
+                    </div>
                   )
                 })}
-              <span className="font-mono text-[10px] px-2 py-1 bg-[#f5f5f5] text-[#888888]">
-                total: {summary!.conversions}
-              </span>
+              </div>
             </div>
           )}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#e8e8e8] border border-[#e8e8e8]">
             <KpiCard label="Clicks"      value={summary!.clicks.toLocaleString()} />
             <KpiCard label="Impresiones" value={`${(summary!.impressions / 1000).toFixed(1)}k`} />
