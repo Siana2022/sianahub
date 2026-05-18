@@ -68,9 +68,14 @@ export async function validateClientSnippet(
   }
 }
 
-export async function checkSgtmHealth(sgtmUrl: string): Promise<HealthCheckResult> {
+export async function checkSgtmHealth(sgtmUrl: string, gtmId?: string | null): Promise<HealthCheckResult> {
+  // Try gtm.js endpoint first (more reliable than /healthz on most sGTM setups)
+  const testUrl = gtmId
+    ? `${sgtmUrl}/gtm.js?id=${gtmId}`
+    : `${sgtmUrl}/gtm.js`
+
   try {
-    const res = await fetch(`${sgtmUrl}/healthz`, {
+    const res = await fetch(testUrl, {
       signal: AbortSignal.timeout(5000),
     })
     return { healthy: res.ok, status: res.status }

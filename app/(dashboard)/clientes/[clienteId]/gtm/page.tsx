@@ -188,7 +188,7 @@ export default function ClienteGtmPage() {
                 <div className="flex items-center gap-3">
                   <StatusIcon ok={result.health.healthy} />
                   <span className="font-mono text-[10px] text-[#555555]">
-                    /healthz responde
+                    /gtm.js responde
                     {result.health.status > 0 && (
                       <span
                         className={`ml-2 font-bold ${

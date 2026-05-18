@@ -31,7 +31,7 @@ export async function GET(
           error: 'El cliente no tiene dominio configurado',
         }),
     cliente.sgtm_url
-      ? checkSgtmHealth(cliente.sgtm_url)
+      ? checkSgtmHealth(cliente.sgtm_url, cliente.gtm_container_id)
       : Promise.resolve({ healthy: false, status: 0, error: 'sGTM URL no configurada' }),
   ])
 
