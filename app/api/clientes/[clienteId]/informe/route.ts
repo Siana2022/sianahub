@@ -23,7 +23,7 @@ export async function GET(
 
   const { data: cliente } = await supabase
     .from('clientes')
-    .select('meta_ad_account_id, meta_events_config, tipo_proyecto, ga4_property_id, gsc_site_url, informe_blocks')
+    .select('meta_ad_account_id, meta_events_config, tipo_proyecto, ga4_property_id, gsc_site_url, informe_config')
     .eq('id', clienteId)
     .single()
 
@@ -37,25 +37,29 @@ export async function GET(
   const metaConfig    = cliente?.meta_events_config ?? {}
   const customRange: DateRange = { since: desde, until: hasta }
 
+  // Available funnel steps come from the client's meta_events_config
+  const funnel_steps: string[] = metaConfig.funnel_steps ?? []
+
   const [ga4, gsc, meta, campaigns] = await Promise.allSettled([
-    propertyId            ? fetchGA4SummaryRange(propertyId, desde, hasta)                          : Promise.resolve(null),
-    cliente?.gsc_site_url ? fetchGSCSummaryRange(cliente.gsc_site_url, desde, hasta)               : Promise.resolve(null),
-    metaAccountId         ? fetchMetaSummary(metaAccountId, metaConfig, customRange)               : Promise.resolve(null),
-    metaAccountId         ? fetchMetaCampaigns(metaAccountId, metaConfig, customRange)             : Promise.resolve(null),
+    propertyId            ? fetchGA4SummaryRange(propertyId, desde, hasta)                : Promise.resolve(null),
+    cliente?.gsc_site_url ? fetchGSCSummaryRange(cliente.gsc_site_url, desde, hasta)     : Promise.resolve(null),
+    metaAccountId         ? fetchMetaSummary(metaAccountId, metaConfig, customRange)      : Promise.resolve(null),
+    metaAccountId         ? fetchMetaCampaigns(metaAccountId, metaConfig, customRange)    : Promise.resolve(null),
   ])
 
   return NextResponse.json({
-    blocks:        cliente?.informe_blocks ?? ['resumen', 'meta', 'gads', 'organico'],
-    tipo_proyecto: cliente?.tipo_proyecto  ?? 'leads',
+    informe_config: cliente?.informe_config ?? {},
+    tipo_proyecto:  cliente?.tipo_proyecto  ?? 'leads',
+    funnel_steps,
     desde,
     hasta,
-    ga4:       ga4.status        === 'fulfilled' ? ga4.value        : null,
-    gsc:       gsc.status        === 'fulfilled' ? gsc.value        : null,
-    meta:      meta.status       === 'fulfilled' ? meta.value       : null,
-    campaigns: campaigns.status  === 'fulfilled' ? campaigns.value  : null,
-    ga4Error:  ga4.status        === 'rejected'  ? String(ga4.reason)        : null,
-    gscError:  gsc.status        === 'rejected'  ? String(gsc.reason)        : null,
-    metaError: meta.status       === 'rejected'  ? String(meta.reason)       : null,
+    ga4:       ga4.status       === 'fulfilled' ? ga4.value       : null,
+    gsc:       gsc.status       === 'fulfilled' ? gsc.value       : null,
+    meta:      meta.status      === 'fulfilled' ? meta.value      : null,
+    campaigns: campaigns.status === 'fulfilled' ? campaigns.value : null,
+    ga4Error:  ga4.status       === 'rejected'  ? String(ga4.reason)       : null,
+    gscError:  gsc.status       === 'rejected'  ? String(gsc.reason)       : null,
+    metaError: meta.status      === 'rejected'  ? String(meta.reason)      : null,
   })
 }
 
@@ -67,13 +71,13 @@ export async function PATCH(
   const supabase = await createClient()
   const body = await req.json()
 
-  if (!Array.isArray(body.informe_blocks)) {
-    return NextResponse.json({ error: 'informe_blocks must be an array' }, { status: 400 })
+  if (!body.informe_config || typeof body.informe_config !== 'object' || Array.isArray(body.informe_config)) {
+    return NextResponse.json({ error: 'informe_config must be an object' }, { status: 400 })
   }
 
   const { error } = await supabase
     .from('clientes')
-    .update({ informe_blocks: body.informe_blocks })
+    .update({ informe_config: body.informe_config })
     .eq('id', clienteId)
 
   if (error) {
