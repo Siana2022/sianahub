@@ -6,6 +6,13 @@ import type { Cliente, TipoProyecto } from '@/types/cliente'
 
 interface Props { cliente?: Cliente }
 
+interface MetaEvent {
+  value:  string
+  label:  string
+  type:   'standard' | 'custom'
+  count?: number
+}
+
 interface FormState {
   nombre: string; dominio: string; estado: 'active' | 'paused' | 'churned'
   notas: string; alertas_activas: boolean; gads_via_mcc: boolean
@@ -110,10 +117,24 @@ export default function ClienteForm({ cliente }: Props) {
   const [error, setError]       = useState<string | null>(null)
   const [ga4Props, setGa4Props] = useState<GA4Property[]>([])
   const [gscSites, setGscSites] = useState<GSCSite[]>([])
-  const [googleOk, setGoogleOk] = useState<boolean | null>(null)
+  const [googleOk, setGoogleOk]       = useState<boolean | null>(null)
   const [ga4ApiError, setGa4ApiError] = useState<string | null>(null)
+
+  // Meta event detection
+  const [metaEvents, setMetaEvents]               = useState<MetaEvent[] | null>(null)
+  const [metaEventsLoading, setMetaEventsLoading] = useState(false)
+  const [metaEventsError, setMetaEventsError]     = useState<string | null>(null)
+
   const router = useRouter()
   const isEdit = !!cliente
+
+  // Auto-detect Meta events if account ID already set (edit mode)
+  useEffect(() => {
+    if (cliente?.meta_ad_account_id) {
+      detectMetaEvents(cliente.meta_ad_account_id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load Google properties on mount
   useEffect(() => {
@@ -139,6 +160,23 @@ export default function ClienteForm({ cliente }: Props) {
         ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
         : DEFAULT_FUNNEL_STEPS_LEADS,
     }))
+  }
+
+  async function detectMetaEvents(accountId?: string) {
+    const id = (accountId ?? form.meta_ad_account_id).replace(/^act_/, '').trim()
+    if (!id) return
+    setMetaEventsLoading(true)
+    setMetaEventsError(null)
+    try {
+      const res  = await fetch(`/api/meta/events?account_id=${id}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setMetaEvents(data.events ?? [])
+    } catch (e) {
+      setMetaEventsError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setMetaEventsLoading(false)
+    }
   }
 
   function toggleConversionEvent(evt: string) {
@@ -403,24 +441,101 @@ export default function ClienteForm({ cliente }: Props) {
         <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-5">
           <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888]">Configuración de eventos</p>
 
-          {/* Conversion events — multi-select */}
+          {/* Conversion events — dynamic from Meta API */}
           <div>
-            <label className={labelCls}>
-              {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
-            </label>
-            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-2">
-              {eventOptions.map(e => (
-                <label key={e.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.meta_conversion_events.includes(e.value)}
-                    onChange={() => toggleConversionEvent(e.value)}
-                    className="accent-[#F7415C]"
-                  />
-                  <span className="font-mono text-xs text-[#555555]">{e.label}</span>
-                </label>
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <label className={labelCls + ' mb-0'}>
+                {form.tipo_proyecto === 'ecommerce' ? 'Evento de conversión principal' : 'Eventos de conversión (leads)'}
+              </label>
+              <button
+                type="button"
+                onClick={() => detectMetaEvents()}
+                disabled={!form.meta_ad_account_id.trim() || metaEventsLoading}
+                className="font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 border border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              >
+                {metaEventsLoading ? (
+                  <>
+                    <span className="inline-block w-2.5 h-2.5 border border-[#888888] border-t-transparent rounded-full animate-spin" />
+                    Detectando…
+                  </>
+                ) : (
+                  <>↻ Detectar eventos de la cuenta</>
+                )}
+              </button>
             </div>
+
+            {/* Error state */}
+            {metaEventsError && (
+              <p className="mb-2 font-mono text-[9px] text-[#F7415C]">Error: {metaEventsError}</p>
+            )}
+
+            {/* No account ID yet */}
+            {!form.meta_ad_account_id.trim() && (
+              <p className="mb-2 font-mono text-[9px] text-[#888888]">
+                Introduce el Ad Account ID para detectar los eventos reales de esta cuenta.
+              </p>
+            )}
+
+            {/* Event checkboxes */}
+            {(() => {
+              // Build display list: detected events + any already-selected not in list
+              const detected = metaEvents ?? []
+              const detectedValues = new Set(detected.map(e => e.value))
+              const savedButNotDetected: MetaEvent[] = form.meta_conversion_events
+                .filter(v => !detectedValues.has(v))
+                .map(v => ({ value: v, label: v, type: 'standard' as const }))
+              const displayList = detected.length > 0
+                ? [...detected, ...savedButNotDetected]
+                : eventOptions.map(e => ({ ...e, type: 'standard' as const, count: undefined }))
+
+              return (
+                <div className="space-y-1">
+                  {displayList.map(e => {
+                    const checked = form.meta_conversion_events.includes(e.value)
+                    return (
+                      <label
+                        key={e.value}
+                        className={`flex items-center gap-3 px-3 py-2 border cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-[#000000] bg-[#000000]'
+                            : 'border-[#e8e8e8] hover:border-[#555555]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleConversionEvent(e.value)}
+                          className="accent-[#F7415C] shrink-0"
+                        />
+                        <span className={`font-mono text-xs flex-1 ${checked ? 'text-white' : 'text-[#000000]'}`}>
+                          {e.label}
+                        </span>
+                        {e.count !== undefined && e.count > 0 && (
+                          <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
+                            checked ? 'bg-white/20 text-white' : 'bg-[#f0f0f0] text-[#888888]'
+                          }`}>
+                            {e.count.toLocaleString('es-ES')} eventos
+                          </span>
+                        )}
+                        {e.type === 'custom' && (
+                          <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
+                            checked ? 'bg-white/20 text-white' : 'bg-[#fef8ed] text-[#d4820a]'
+                          }`}>
+                            custom
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })}
+                  {detected.length > 0 && (
+                    <p className="pt-1 font-mono text-[9px] text-[#888888]">
+                      {detected.length} evento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} en esta cuenta
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
             <p className="mt-2 font-mono text-[9px] text-[#888888]">
               {form.tipo_proyecto === 'ecommerce'
                 ? 'Selecciona el evento principal de compra.'
