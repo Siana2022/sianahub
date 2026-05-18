@@ -209,45 +209,53 @@ export async function fetchGA4EventsByName(
 ): Promise<{ key: string; count: number; count_prev: number }[]> {
   if (!eventNames.length) return []
 
-  // Calculate prev period
+  // Calculate prev period of equal duration
   const s = new Date(since)
   const u = new Date(until)
   const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
   const prevUntilDate = new Date(s); prevUntilDate.setDate(prevUntilDate.getDate() - 1)
   const prevSinceDate = new Date(prevUntilDate); prevSinceDate.setDate(prevSinceDate.getDate() - days + 1)
+  const prevSince = prevSinceDate.toISOString().slice(0, 10)
+  const prevUntil = prevUntilDate.toISOString().slice(0, 10)
 
-  const data = await ga4Fetch(propertyId, {
-    dateRanges: [
-      dateRange(since, until),
-      dateRange(prevSinceDate.toISOString().slice(0, 10), prevUntilDate.toISOString().slice(0, 10)),
-    ],
-    dimensions: [dim('eventName'), dim('dateRange')],
-    metrics:    [met('eventCount')],
-    dimensionFilter: {
-      filter: {
-        fieldName: 'eventName',
-        inListFilter: { values: eventNames },
-      },
+  const eventFilter = {
+    filter: {
+      fieldName: 'eventName',
+      inListFilter: { values: eventNames },
     },
-  })
-
-  // Build map: eventName → { curr, prev }
-  const map: Record<string, { curr: number; prev: number }> = {}
-  for (const name of eventNames) map[name] = { curr: 0, prev: 0 }
-
-  for (const row of data.rows ?? []) {
-    const name      = row.dimensionValues[0].value as string
-    const range     = row.dimensionValues[1].value as string   // "date_range_0" or "date_range_1"
-    const count     = parseInt(row.metricValues[0].value ?? '0')
-    if (!map[name]) map[name] = { curr: 0, prev: 0 }
-    if (range === 'date_range_0') map[name].curr += count
-    else                          map[name].prev += count
   }
+
+  // Two separate calls — GA4 runReport doesn't support dateRange as a dimension
+  const [currData, prevData] = await Promise.all([
+    ga4Fetch(propertyId, {
+      dateRanges:      [dateRange(since, until)],
+      dimensions:      [dim('eventName')],
+      metrics:         [met('eventCount')],
+      dimensionFilter: eventFilter,
+    }),
+    ga4Fetch(propertyId, {
+      dateRanges:      [dateRange(prevSince, prevUntil)],
+      dimensions:      [dim('eventName')],
+      metrics:         [met('eventCount')],
+      dimensionFilter: eventFilter,
+    }),
+  ])
+
+  const toMap = (data: { rows?: { dimensionValues: { value: string }[]; metricValues: { value: string }[] }[] }) => {
+    const m: Record<string, number> = {}
+    for (const row of data.rows ?? []) {
+      m[row.dimensionValues[0].value] = parseInt(row.metricValues[0].value ?? '0')
+    }
+    return m
+  }
+
+  const curr = toMap(currData)
+  const prev = toMap(prevData)
 
   return eventNames.map(key => ({
     key,
-    count:      map[key]?.curr ?? 0,
-    count_prev: map[key]?.prev ?? 0,
+    count:      curr[key] ?? 0,
+    count_prev: prev[key] ?? 0,
   }))
 }
 
