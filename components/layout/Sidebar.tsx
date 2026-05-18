@@ -29,7 +29,6 @@ export default function Sidebar() {
     <aside className="w-52 min-h-screen bg-[#000000] flex flex-col shrink-0">
       {/* Logo */}
       <div className="px-5 py-6 border-b border-white/10">
-        <p className="font-mono text-[9px] tracking-[3px] uppercase text-white/30 mb-1">Sistema</p>
         <p className="font-display text-xl font-bold text-white leading-none">
           Siana<span className="text-[#F7415C]">Hub</span>
         </p>
@@ -44,13 +43,13 @@ export default function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-2.5 px-3 py-2 text-xs font-mono tracking-wide uppercase transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 text-base font-bold transition-colors rounded-none',
                 active
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+                  ? 'bg-white text-[#000000]'
+                  : 'text-white hover:bg-white hover:text-[#000000]'
               )}
             >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <Icon className="w-4 h-4 shrink-0" />
               {label}
             </Link>
           )
@@ -61,9 +60,9 @@ export default function Sidebar() {
       <div className="px-3 py-4 border-t border-white/10">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2.5 px-3 py-2 text-xs font-mono tracking-wide uppercase text-white/30 hover:text-white/70 transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2.5 text-base font-bold text-white/40 hover:text-white transition-colors w-full"
         >
-          <LogOut className="w-3.5 h-3.5" />
+          <LogOut className="w-4 h-4" />
           Salir
         </button>
       </div>

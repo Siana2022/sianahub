@@ -21,7 +21,7 @@ export default async function Topbar({ title, subtitle }: TopbarProps) {
   return (
     <header className="bg-[#000000] text-white px-8 py-6 flex items-end justify-between">
       <div>
-        <p className="font-mono text-[9px] tracking-[3px] uppercase text-white/30 mb-1">
+        <p className="font-display text-sm font-bold text-white/40 mb-1 leading-none">
           {subtitle ?? 'Cliente'}
         </p>
         <h1 className="font-display text-2xl font-bold text-white leading-none">{title}</h1>

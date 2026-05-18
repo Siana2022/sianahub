@@ -32,10 +32,10 @@ export default function ClienteTabs({ clienteId }: { clienteId: string }) {
             <Link
               key={tab.href}
               href={href}
-              className={`px-4 py-3.5 font-mono text-[10px] tracking-[1.5px] uppercase border-b-2 transition-colors shrink-0 ${
+              className={`px-4 py-3.5 text-base font-bold border-b-2 transition-colors shrink-0 ${
                 active
                   ? 'border-[#F7415C] text-[#F7415C]'
-                  : 'border-transparent text-[#888888] hover:text-[#000000]'
+                  : 'border-transparent text-[#888888] hover:text-[#000000] hover:border-[#000000]'
               }`}
             >
               {tab.label}
