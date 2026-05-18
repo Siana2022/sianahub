@@ -5,18 +5,23 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import KpiCard from '@/components/dashboard/KpiCard'
 import { Pencil, Settings, X, Check } from 'lucide-react'
+import type { TipoProyecto } from '@/types/cliente'
 
 // ── Widget catalogue ───────────────────────────────────────────────────────────
 
 type WidgetId =
   | 'ga4_sessions' | 'ga4_users' | 'ga4_conversions' | 'ga4_bounce' | 'ga4_duration'
   | 'gsc_clicks' | 'gsc_impressions' | 'gsc_ctr' | 'gsc_position'
-  | 'meta_spend' | 'meta_conversions' | 'meta_cpl' | 'meta_roas' | 'meta_clicks' | 'meta_ctr'
+  | 'meta_spend' | 'meta_conversions' | 'meta_cpl' | 'meta_roas'
+  | 'meta_clicks' | 'meta_ctr' | 'meta_revenue' | 'meta_purchases'
 
 interface WidgetDef {
-  id: WidgetId
-  label: string
-  group: 'GA4' | 'GSC' | 'Meta Ads'
+  id:            WidgetId
+  labelLeads:    string
+  labelEcommerce: string
+  group:         'GA4' | 'GSC' | 'Meta Ads'
+  onlyLeads?:    boolean   // hide in ecommerce config panel
+  onlyEcommerce?: boolean  // hide in leads config panel
   invertColors?: boolean
   getValue: (data: ResumenData) => string | number | null
   getPrev:  (data: ResumenData) => number | undefined
@@ -24,32 +29,37 @@ interface WidgetDef {
 
 const WIDGETS: WidgetDef[] = [
   // GA4
-  { id: 'ga4_sessions',    label: 'Sesiones',       group: 'GA4', getValue: d => d.ga4?.sessions    ?? null, getPrev: d => d.ga4?.sessions_prev },
-  { id: 'ga4_users',       label: 'Usuarios',        group: 'GA4', getValue: d => d.ga4?.users       ?? null, getPrev: d => d.ga4?.users_prev },
-  { id: 'ga4_conversions', label: 'Conversiones',    group: 'GA4', getValue: d => d.ga4?.conversions  ?? null, getPrev: d => d.ga4?.conversions_prev },
-  { id: 'ga4_bounce',      label: 'Tasa rebote',     group: 'GA4', invertColors: true, getValue: d => d.ga4 ? `${d.ga4.bounce_rate.toFixed(1)}%` : null, getPrev: d => undefined },
-  { id: 'ga4_duration',    label: 'Duración media',  group: 'GA4', getValue: d => d.ga4 ? `${Math.round(d.ga4.avg_session_duration)}s` : null, getPrev: d => undefined },
+  { id: 'ga4_sessions',    labelLeads: 'Sesiones',      labelEcommerce: 'Sesiones',      group: 'GA4', getValue: d => d.ga4?.sessions    ?? null, getPrev: d => d.ga4?.sessions_prev },
+  { id: 'ga4_users',       labelLeads: 'Usuarios',       labelEcommerce: 'Usuarios',       group: 'GA4', getValue: d => d.ga4?.users       ?? null, getPrev: d => d.ga4?.users_prev },
+  { id: 'ga4_conversions', labelLeads: 'Conversiones',   labelEcommerce: 'Conversiones',   group: 'GA4', getValue: d => d.ga4?.conversions  ?? null, getPrev: d => d.ga4?.conversions_prev },
+  { id: 'ga4_bounce',      labelLeads: 'Tasa rebote',    labelEcommerce: 'Tasa rebote',    group: 'GA4', invertColors: true, getValue: d => d.ga4 ? `${d.ga4.bounce_rate.toFixed(1)}%` : null, getPrev: d => undefined },
+  { id: 'ga4_duration',    labelLeads: 'Duración media', labelEcommerce: 'Duración media', group: 'GA4', getValue: d => d.ga4 ? `${Math.round(d.ga4.avg_session_duration)}s` : null, getPrev: d => undefined },
   // GSC
-  { id: 'gsc_clicks',      label: 'Clicks GSC',      group: 'GSC', getValue: d => d.gsc?.clicks      ?? null, getPrev: d => d.gsc?.clicks_prev },
-  { id: 'gsc_impressions', label: 'Impresiones GSC', group: 'GSC', getValue: d => d.gsc?.impressions  ?? null, getPrev: d => d.gsc?.impressions_prev },
-  { id: 'gsc_ctr',         label: 'CTR medio',       group: 'GSC', getValue: d => d.gsc ? `${d.gsc.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
-  { id: 'gsc_position',    label: 'Posición media',  group: 'GSC', invertColors: true, getValue: d => d.gsc ? d.gsc.position.toFixed(1) : null, getPrev: d => undefined },
-  // Meta Ads
-  { id: 'meta_spend',       label: 'Inversión Meta',   group: 'Meta Ads', getValue: d => d.meta ? `€${d.meta.spend.toFixed(0)}` : null, getPrev: d => d.meta?.spend_prev },
-  { id: 'meta_conversions', label: 'Leads Meta',        group: 'Meta Ads', getValue: d => d.meta?.conversions ?? null, getPrev: d => undefined },
-  { id: 'meta_cpl',         label: 'CPL Meta',          group: 'Meta Ads', invertColors: true, getValue: d => d.meta ? `€${d.meta.cpl.toFixed(2)}` : null, getPrev: d => d.meta?.cpl_prev },
-  { id: 'meta_roas',        label: 'ROAS Meta',         group: 'Meta Ads', getValue: d => d.meta && d.meta.roas > 0 ? `${d.meta.roas.toFixed(2)}x` : null, getPrev: d => undefined },
-  { id: 'meta_clicks',      label: 'Clicks Meta',       group: 'Meta Ads', getValue: d => d.meta?.clicks ?? null, getPrev: d => undefined },
-  { id: 'meta_ctr',         label: 'CTR Meta',          group: 'Meta Ads', getValue: d => d.meta ? `${d.meta.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
+  { id: 'gsc_clicks',      labelLeads: 'Clicks GSC',      labelEcommerce: 'Clicks GSC',      group: 'GSC', getValue: d => d.gsc?.clicks      ?? null, getPrev: d => d.gsc?.clicks_prev },
+  { id: 'gsc_impressions', labelLeads: 'Impresiones GSC', labelEcommerce: 'Impresiones GSC', group: 'GSC', getValue: d => d.gsc?.impressions  ?? null, getPrev: d => d.gsc?.impressions_prev },
+  { id: 'gsc_ctr',         labelLeads: 'CTR medio',       labelEcommerce: 'CTR medio',       group: 'GSC', getValue: d => d.gsc ? `${d.gsc.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
+  { id: 'gsc_position',    labelLeads: 'Posición media',  labelEcommerce: 'Posición media',  group: 'GSC', invertColors: true, getValue: d => d.gsc ? d.gsc.position.toFixed(1) : null, getPrev: d => undefined },
+  // Meta Ads — common
+  { id: 'meta_spend',       labelLeads: 'Inversión Meta', labelEcommerce: 'Inversión Meta', group: 'Meta Ads', getValue: d => d.meta ? `€${d.meta.spend.toFixed(0)}` : null, getPrev: d => d.meta?.spend_prev },
+  { id: 'meta_roas',        labelLeads: 'ROAS',           labelEcommerce: 'ROAS',           group: 'Meta Ads', getValue: d => d.meta && d.meta.roas > 0 ? `${d.meta.roas.toFixed(2)}x` : null, getPrev: d => undefined },
+  { id: 'meta_clicks',      labelLeads: 'Clicks Meta',    labelEcommerce: 'Clicks Meta',    group: 'Meta Ads', getValue: d => d.meta?.clicks ?? null, getPrev: d => undefined },
+  { id: 'meta_ctr',         labelLeads: 'CTR Meta',       labelEcommerce: 'CTR Meta',       group: 'Meta Ads', getValue: d => d.meta ? `${d.meta.ctr.toFixed(2)}%` : null, getPrev: d => undefined },
+  // Meta Ads — leads only
+  { id: 'meta_conversions', labelLeads: 'Leads',          labelEcommerce: 'Leads',    group: 'Meta Ads', onlyLeads: true,    getValue: d => d.meta?.conversions ?? null, getPrev: d => undefined },
+  { id: 'meta_cpl',         labelLeads: 'CPL',            labelEcommerce: 'CPL',      group: 'Meta Ads', onlyLeads: true,    invertColors: true, getValue: d => d.meta ? `€${d.meta.cpl.toFixed(2)}` : null, getPrev: d => d.meta?.cpl_prev },
+  // Meta Ads — ecommerce only
+  { id: 'meta_revenue',     labelLeads: 'Revenue',        labelEcommerce: 'Revenue',  group: 'Meta Ads', onlyEcommerce: true, getValue: d => d.meta?.revenue != null ? `€${d.meta.revenue.toFixed(0)}` : null, getPrev: d => d.meta?.revenue_prev },
+  { id: 'meta_purchases',   labelLeads: 'Compras',        labelEcommerce: 'Compras',  group: 'Meta Ads', onlyEcommerce: true, getValue: d => d.meta?.purchases ?? null, getPrev: d => undefined },
 ]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ResumenData {
-  widgets:   string[]
+  widgets:       string[]
+  tipo_proyecto: TipoProyecto
   ga4:       { sessions: number; sessions_prev: number; users: number; users_prev: number; conversions: number; conversions_prev: number; bounce_rate: number; avg_session_duration: number } | null
   gsc:       { clicks: number; clicks_prev: number; impressions: number; impressions_prev: number; ctr: number; position: number } | null
-  meta:      { spend: number; spend_prev: number; conversions: number; cpl: number; cpl_prev: number; roas: number; clicks: number; ctr: number } | null
+  meta:      { spend: number; spend_prev: number; conversions: number; cpl: number; cpl_prev: number; roas: number; revenue: number; revenue_prev: number; purchases: number; clicks: number; ctr: number } | null
   ga4Error:  string | null
   gscError:  string | null
   metaError: string | null
@@ -91,7 +101,21 @@ export default function ResumenPage() {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   }
 
+  const tipo          = data?.tipo_proyecto ?? 'leads'
+  const isEcommerce   = tipo === 'ecommerce'
   const activeWidgets = WIDGETS.filter(w => (data?.widgets ?? []).includes(w.id))
+
+  // Widgets visible in the config panel — filter by project type
+  function isVisible(w: WidgetDef) {
+    if (w.onlyLeads     && isEcommerce)  return false
+    if (w.onlyEcommerce && !isEcommerce) return false
+    return true
+  }
+
+  // Get contextual label
+  function label(w: WidgetDef) {
+    return isEcommerce ? w.labelEcommerce : w.labelLeads
+  }
 
   if (loading) return <LoadingState />
 
@@ -140,13 +164,13 @@ export default function ResumenPage() {
             if (value === null) {
               return (
                 <div key={w.id} className="bg-white p-5">
-                  <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-2">{w.label}</p>
+                  <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-2">{label(w)}</p>
                   <p className="font-mono text-xs text-[#888888]">Sin datos</p>
                 </div>
               )
             }
             return (
-              <KpiCard key={w.id} label={w.label} value={value} prev={prev} invertColors={w.invertColors} />
+              <KpiCard key={w.id} label={label(w)} value={value} prev={prev} invertColors={w.invertColors} />
             )
           })}
         </div>
@@ -167,37 +191,46 @@ export default function ResumenPage() {
           <div className="flex-1 bg-black/30" onClick={() => setConfigOpen(false)} />
           <div className="w-80 bg-white flex flex-col shadow-xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8e8e8]">
-              <h3 className="font-display text-base font-bold">Configurar resumen</h3>
+              <div>
+                <h3 className="font-display text-base font-bold">Configurar resumen</h3>
+                <p className="font-mono text-[9px] text-[#888888] mt-0.5 uppercase tracking-wide">
+                  {isEcommerce ? 'Ecommerce' : 'Captación de leads'}
+                </p>
+              </div>
               <button onClick={() => setConfigOpen(false)} className="text-[#888888] hover:text-[#000000] transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {(['GA4', 'GSC', 'Meta Ads'] as const).map(group => (
-                <div key={group}>
-                  <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-3">{group}</p>
-                  <div className="space-y-1.5">
-                    {WIDGETS.filter(w => w.group === group).map(w => {
-                      const on = selected.includes(w.id)
-                      return (
-                        <button
-                          key={w.id}
-                          onClick={() => toggle(w.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 border text-sm transition-colors ${
-                            on
-                              ? 'border-[#000000] bg-[#000000] text-white'
-                              : 'border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000]'
-                          }`}
-                        >
-                          <span className="font-mono text-[10px] tracking-wide uppercase">{w.label}</span>
-                          {on && <Check className="w-3.5 h-3.5" />}
-                        </button>
-                      )
-                    })}
+              {(['GA4', 'GSC', 'Meta Ads'] as const).map(group => {
+                const groupWidgets = WIDGETS.filter(w => w.group === group && isVisible(w))
+                if (groupWidgets.length === 0) return null
+                return (
+                  <div key={group}>
+                    <p className="font-mono text-[9px] tracking-[2px] uppercase text-[#888888] mb-3">{group}</p>
+                    <div className="space-y-1.5">
+                      {groupWidgets.map(w => {
+                        const on = selected.includes(w.id)
+                        return (
+                          <button
+                            key={w.id}
+                            onClick={() => toggle(w.id)}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 border text-sm transition-colors ${
+                              on
+                                ? 'border-[#000000] bg-[#000000] text-white'
+                                : 'border-[#e8e8e8] text-[#555555] hover:border-[#000000] hover:text-[#000000]'
+                            }`}
+                          >
+                            <span className="font-mono text-[10px] tracking-wide uppercase">{label(w)}</span>
+                            {on && <Check className="w-3.5 h-3.5" />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="px-6 py-4 border-t border-[#e8e8e8]">

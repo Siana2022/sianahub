@@ -13,7 +13,7 @@ export async function GET(
 
   const { data: cliente } = await supabase
     .from('clientes')
-    .select('ga4_property_id, gsc_site_url, meta_ad_account_id, resumen_widgets')
+    .select('ga4_property_id, gsc_site_url, meta_ad_account_id, meta_events_config, tipo_proyecto, resumen_widgets')
     .eq('id', clienteId)
     .single()
 
@@ -24,15 +24,17 @@ export async function GET(
     : null
 
   const metaAccountId = cliente?.meta_ad_account_id?.replace(/^act_/, '') ?? null
+  const metaConfig    = cliente?.meta_events_config ?? {}
 
   const [ga4, gsc, meta] = await Promise.allSettled([
-    propertyId ? fetchGA4Summary(propertyId) : Promise.resolve(null),
-    cliente?.gsc_site_url ? fetchGSCSummary(cliente.gsc_site_url) : Promise.resolve(null),
-    metaAccountId ? fetchMetaSummary(metaAccountId) : Promise.resolve(null),
+    propertyId        ? fetchGA4Summary(propertyId)                     : Promise.resolve(null),
+    cliente?.gsc_site_url ? fetchGSCSummary(cliente.gsc_site_url)       : Promise.resolve(null),
+    metaAccountId     ? fetchMetaSummary(metaAccountId, metaConfig)     : Promise.resolve(null),
   ])
 
   return NextResponse.json({
-    widgets:   cliente?.resumen_widgets ?? ['ga4_sessions', 'ga4_conversions', 'gsc_clicks', 'gsc_position'],
+    widgets:       cliente?.resumen_widgets ?? ['ga4_sessions', 'ga4_conversions', 'gsc_clicks', 'gsc_position'],
+    tipo_proyecto: cliente?.tipo_proyecto   ?? 'leads',
     ga4:       ga4.status   === 'fulfilled' ? ga4.value   : null,
     gsc:       gsc.status   === 'fulfilled' ? gsc.value   : null,
     meta:      meta.status  === 'fulfilled' ? meta.value  : null,
