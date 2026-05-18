@@ -23,6 +23,8 @@ export interface MetaFunnel {
   initiate_checkout: number
   purchases:         number
   revenue:           number
+  /** Dynamic map: event_name → count (for any configured funnel step) */
+  steps:             Record<string, number>
 }
 
 export interface MetaSummary {
@@ -138,15 +140,26 @@ function parseInsightsFull(data: Record<string, unknown>[]): {
   }
 }
 
-function buildFunnel(actions: ActionRow[], actionValues: ActionRow[]): MetaFunnel {
-  const purchases = getAction(actions, 'purchase', 'offsite_conversion.fb_pixel_purchase')
+// Common pixel fallback prefix
+function pixelFallback(type: string) { return `offsite_conversion.fb_pixel_${type}` }
+
+function buildFunnel(actions: ActionRow[], actionValues: ActionRow[], funnelSteps: string[] = []): MetaFunnel {
+  const purchases = getAction(actions, 'purchase', pixelFallback('purchase'))
+
+  // Build dynamic steps map for any configured event
+  const steps: Record<string, number> = {}
+  for (const step of funnelSteps) {
+    steps[step] = getAction(actions, step, pixelFallback(step))
+  }
+
   return {
     page_views:        getAction(actions, 'page_view'),
-    view_content:      getAction(actions, 'view_content', 'offsite_conversion.fb_pixel_view_content'),
-    add_to_cart:       getAction(actions, 'add_to_cart',  'offsite_conversion.fb_pixel_add_to_cart'),
-    initiate_checkout: getAction(actions, 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'),
+    view_content:      getAction(actions, 'view_content',      pixelFallback('view_content')),
+    add_to_cart:       getAction(actions, 'add_to_cart',       pixelFallback('add_to_cart')),
+    initiate_checkout: getAction(actions, 'initiate_checkout', pixelFallback('initiate_checkout')),
     purchases,
-    revenue:           getActionValue(actionValues, 'purchase', 'offsite_conversion.fb_pixel_purchase'),
+    revenue:           getActionValue(actionValues, 'purchase', pixelFallback('purchase')),
+    steps,
   }
 }
 
@@ -178,13 +191,13 @@ export async function fetchMetaSummary(
   const p = parseInsightsFull(prev.data ?? [])
 
   // Main conversions: use configured event type (with pixel fallback)
-  const conversionEvent = cfg.conversion_event
-  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
-  const convCurr = getAction(c.actions, conversionEvent, pixelFallback)
-  const convPrev = getAction(p.actions, conversionEvent, pixelFallback)
+  const convEvent   = cfg.conversion_event
+  const convPixel   = pixelFallback(convEvent)
+  const convCurr    = getAction(c.actions, convEvent, convPixel)
+  const convPrev    = getAction(p.actions, convEvent, convPixel)
 
-  // Always extract purchases + revenue for ecommerce KPIs
-  const funnel = buildFunnel(c.actions, c.actionValues)
+  const funnel     = buildFunnel(c.actions, c.actionValues, cfg.funnel_steps)
+  const funnelPrev = buildFunnel(p.actions, p.actionValues, cfg.funnel_steps)
 
   return {
     spend:        c.spend,
@@ -197,7 +210,7 @@ export async function fetchMetaSummary(
     cpl_prev:     convPrev > 0 ? p.spend / convPrev : 0,
     purchases:    funnel.purchases,
     revenue:      funnel.revenue,
-    revenue_prev: buildFunnel(p.actions, p.actionValues).revenue,
+    revenue_prev: funnelPrev.revenue,
     roas:         c.spend > 0 ? funnel.revenue / c.spend : 0,
     ctr:          c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
     cpc:          c.clicks > 0      ? c.spend / c.clicks               : 0,
@@ -218,14 +231,14 @@ export async function fetchMetaCampaigns(
     limit:      '20',
   })
 
-  const conversionEvent = cfg.conversion_event
-  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
+  const convEvent = cfg.conversion_event
+  const convPixel = pixelFallback(convEvent)
 
   return (data.data ?? []).map((c: Record<string, unknown>) => {
     const insData = (c.insights as { data: Record<string, unknown>[] })?.data ?? []
     const ins     = parseInsightsFull(insData)
-    const funnel  = buildFunnel(ins.actions, ins.actionValues)
-    const convs   = getAction(ins.actions, conversionEvent, pixelFallback)
+    const funnel  = buildFunnel(ins.actions, ins.actionValues, cfg.funnel_steps)
+    const convs   = getAction(ins.actions, convEvent, convPixel)
 
     return {
       id:          c.id       as string,
@@ -259,13 +272,13 @@ export async function fetchMetaDaily(
     level:          'account',
   })
 
-  const conversionEvent = cfg.conversion_event
-  const pixelFallback   = `offsite_conversion.fb_pixel_${conversionEvent}`
+  const convEvent = cfg.conversion_event
+  const convPixel = pixelFallback(convEvent)
 
   return (data.data ?? []).map((row: Record<string, unknown>) => {
     const ins    = parseInsightsFull([row])
-    const funnel = buildFunnel(ins.actions, ins.actionValues)
-    const convs  = getAction(ins.actions, conversionEvent, pixelFallback)
+    const funnel = buildFunnel(ins.actions, ins.actionValues, cfg.funnel_steps)
+    const convs  = getAction(ins.actions, convEvent, convPixel)
 
     return {
       fecha:       row.date_start as string,

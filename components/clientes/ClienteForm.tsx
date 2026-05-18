@@ -37,7 +37,17 @@ const META_ECOMMERCE_EVENTS = [
   { value: 'complete_registration', label: 'Registro completado' },
 ]
 
-const FUNNEL_STEPS = [
+const FUNNEL_STEPS_LEADS = [
+  { value: 'page_view',            label: 'Page Views' },
+  { value: 'view_content',         label: 'View Content' },
+  { value: 'lead',                 label: 'Lead' },
+  { value: 'complete_registration',label: 'Registro completado' },
+  { value: 'contact',              label: 'Contacto' },
+  { value: 'schedule',             label: 'Cita programada' },
+  { value: 'submit_application',   label: 'Solicitud enviada' },
+]
+
+const FUNNEL_STEPS_ECOMMERCE = [
   { value: 'page_view',         label: 'Page Views' },
   { value: 'view_content',      label: 'View Content' },
   { value: 'add_to_cart',       label: 'Add to Cart' },
@@ -45,9 +55,10 @@ const FUNNEL_STEPS = [
   { value: 'purchase',          label: 'Compra' },
 ]
 
-const DEFAULT_FUNNEL_STEPS  = ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase']
-const DEFAULT_LEAD_EVENT     = 'lead'
-const DEFAULT_PURCHASE_EVENT = 'purchase'
+const DEFAULT_FUNNEL_STEPS_LEADS     = ['page_view', 'view_content', 'lead']
+const DEFAULT_FUNNEL_STEPS_ECOMMERCE = ['view_content', 'add_to_cart', 'initiate_checkout', 'purchase']
+const DEFAULT_LEAD_EVENT             = 'lead'
+const DEFAULT_PURCHASE_EVENT         = 'purchase'
 
 interface GA4Property { id: string; name: string; account: string }
 interface GSCSite     { url: string; permission: string }
@@ -62,7 +73,8 @@ function toFormState(c?: Cliente): FormState {
     gads_via_mcc:          c?.gads_via_mcc          ?? true,
     tipo_proyecto:         c?.tipo_proyecto         ?? 'leads',
     meta_conversion_event: c?.meta_events_config?.conversion_event ?? '',
-    meta_funnel_steps:     c?.meta_events_config?.funnel_steps     ?? [],
+    meta_funnel_steps:     c?.meta_events_config?.funnel_steps     ??
+      (c?.tipo_proyecto === 'ecommerce' ? DEFAULT_FUNNEL_STEPS_ECOMMERCE : DEFAULT_FUNNEL_STEPS_LEADS),
     ga4_property_id:       c?.ga4_property_id       ?? '',
     ga4_account_id:        c?.ga4_account_id        ?? '',
     ga4_conversion_events: c?.ga4_conversion_events ?? '',
@@ -116,7 +128,9 @@ export default function ClienteForm({ cliente }: Props) {
       ...f,
       tipo_proyecto:         tipo,
       meta_conversion_event: '',
-      meta_funnel_steps:     tipo === 'ecommerce' ? DEFAULT_FUNNEL_STEPS : [],
+      meta_funnel_steps:     tipo === 'ecommerce'
+        ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
+        : DEFAULT_FUNNEL_STEPS_LEADS,
     }))
   }
 
@@ -148,9 +162,12 @@ export default function ClienteForm({ cliente }: Props) {
       ? (form.tipo_proyecto === 'ecommerce' ? DEFAULT_PURCHASE_EVENT : DEFAULT_LEAD_EVENT)
       : form.meta_conversion_event.trim()
 
-    const funnelSteps = form.tipo_proyecto === 'ecommerce'
-      ? (form.meta_funnel_steps.length > 0 ? form.meta_funnel_steps : DEFAULT_FUNNEL_STEPS)
-      : []
+    const defaultFunnel = form.tipo_proyecto === 'ecommerce'
+      ? DEFAULT_FUNNEL_STEPS_ECOMMERCE
+      : DEFAULT_FUNNEL_STEPS_LEADS
+    const funnelSteps = form.meta_funnel_steps.length > 0
+      ? form.meta_funnel_steps
+      : defaultFunnel
 
     const payload = {
       nombre:             form.nombre,
@@ -394,28 +411,26 @@ export default function ClienteForm({ cliente }: Props) {
             </p>
           </div>
 
-          {/* Funnel steps — ecommerce only */}
-          {form.tipo_proyecto === 'ecommerce' && (
-            <div>
-              <label className={labelCls}>Pasos del funnel a visualizar</label>
-              <div className="flex flex-wrap gap-4 mt-2">
-                {FUNNEL_STEPS.map(step => (
-                  <label key={step.value} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.meta_funnel_steps.includes(step.value)}
-                      onChange={() => toggleFunnelStep(step.value)}
-                      className="accent-[#F7415C]"
-                    />
-                    <span className="font-mono text-xs text-[#555555]">{step.label}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="mt-2 font-mono text-[9px] text-[#888888]">
-                Los pasos seleccionados aparecen en el funnel de compra dentro de Meta Ads.
-              </p>
+          {/* Funnel steps — all project types */}
+          <div>
+            <label className={labelCls}>Pasos del funnel a visualizar</label>
+            <div className="flex flex-wrap gap-4 mt-2">
+              {(form.tipo_proyecto === 'ecommerce' ? FUNNEL_STEPS_ECOMMERCE : FUNNEL_STEPS_LEADS).map(step => (
+                <label key={step.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.meta_funnel_steps.includes(step.value)}
+                    onChange={() => toggleFunnelStep(step.value)}
+                    className="accent-[#F7415C]"
+                  />
+                  <span className="font-mono text-xs text-[#555555]">{step.label}</span>
+                </label>
+              ))}
             </div>
-          )}
+            <p className="mt-2 font-mono text-[9px] text-[#888888]">
+              Los pasos seleccionados aparecen en el funnel dentro de Meta Ads.
+            </p>
+          </div>
         </div>
       </section>
 

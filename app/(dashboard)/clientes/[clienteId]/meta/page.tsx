@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import KpiCard from '@/components/dashboard/KpiCard'
 import LineChart from '@/components/charts/LineChart'
 
-type Funnel = { page_views: number; view_content: number; add_to_cart: number; initiate_checkout: number; purchases: number; revenue: number }
+type Funnel = { page_views: number; view_content: number; add_to_cart: number; initiate_checkout: number; purchases: number; revenue: number; steps: Record<string, number> }
 type Summary = {
   spend: number; spend_prev: number
   impressions: number; clicks: number; reach: number
@@ -71,18 +71,28 @@ export default function MetaAdsPage() {
   const isEcommerce = tipoProyecto === 'ecommerce'
   const f = summary!.funnel
 
-  // Build funnel steps from config
-  const ALL_FUNNEL = [
-    { key: 'page_view',         label: 'Page Views',   val: f.page_views },
-    { key: 'view_content',      label: 'View Content', val: f.view_content },
-    { key: 'add_to_cart',       label: 'Add to Cart',  val: f.add_to_cart },
-    { key: 'initiate_checkout', label: 'Checkout',     val: f.initiate_checkout },
-    { key: 'purchase',          label: 'Compras',      val: f.purchases },
-  ]
-  const activeFunnelSteps = isEcommerce
-    ? (funnelSteps.length > 0
-        ? ALL_FUNNEL.filter(s => funnelSteps.includes(s.key))
-        : ALL_FUNNEL.filter(s => s.val > 0))
+  // Friendly labels for known event names
+  const STEP_LABELS: Record<string, string> = {
+    page_view:            'Page Views',
+    view_content:         'View Content',
+    add_to_cart:          'Add to Cart',
+    initiate_checkout:    'Checkout',
+    purchase:             'Compras',
+    lead:                 'Leads',
+    complete_registration:'Registros',
+    contact:              'Contactos',
+    schedule:             'Citas',
+    submit_application:   'Solicitudes',
+    subscribe:            'Suscripciones',
+  }
+
+  // Build funnel from configured steps using the dynamic steps map
+  const activeFunnelSteps = funnelSteps.length > 0
+    ? funnelSteps.map(key => ({
+        key,
+        label: STEP_LABELS[key] ?? key,
+        val:   f.steps?.[key] ?? 0,
+      }))
     : []
 
   return (
@@ -90,9 +100,9 @@ export default function MetaAdsPage() {
       <div className="flex items-baseline gap-4 pb-4 border-b-2 border-[#000000]">
         <h2 className="font-display text-2xl font-bold">Meta Ads</h2>
         <span className="font-mono text-[10px] tracking-[2px] uppercase text-[#888888]">últimos 30 días</span>
-        {isEcommerce && (
-          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#edf2fc] text-[#1a4fa0] uppercase tracking-wide">ecommerce</span>
-        )}
+        <span className="font-mono text-[9px] px-2 py-0.5 bg-[#f0f0f0] text-[#555555] uppercase tracking-wide">
+          {isEcommerce ? 'ecommerce' : 'leads'}
+        </span>
       </div>
 
       {/* KPIs principales */}
@@ -131,7 +141,7 @@ export default function MetaAdsPage() {
       {/* Funnel ecommerce — only show configured steps that have data */}
       {activeFunnelSteps.length >= 2 && (
         <div className="bg-white border border-[#e8e8e8] p-6">
-          <h3 className="font-display text-base font-bold mb-1">Funnel de compra</h3>
+          <h3 className="font-display text-base font-bold mb-1">{isEcommerce ? 'Funnel de compra' : 'Funnel de conversión'}</h3>
           <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] mb-4">tasas de conversión entre pasos</p>
           <div className="flex gap-px">
             {activeFunnelSteps.map((step, i) => (
