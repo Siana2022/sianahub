@@ -15,42 +15,64 @@ async function metaFetch(path: string, params: Record<string, string> = {}) {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+export interface MetaFunnel {
+  page_views:       number
+  view_content:     number
+  add_to_cart:      number
+  initiate_checkout: number
+  purchases:        number
+  revenue:          number
+}
+
 export interface MetaSummary {
-  spend: number
-  spend_prev: number
+  spend:       number
+  spend_prev:  number
   impressions: number
-  clicks: number
-  ctr: number
-  cpc: number
-  cpp: number
-  reach: number
+  clicks:      number
+  ctr:         number
+  cpc:         number
+  cpp:         number
+  reach:       number
+  // Leads mode
   conversions: number
-  cpl: number
-  cpl_prev: number
-  roas: number
+  cpl:         number
+  cpl_prev:    number
+  // Ecommerce mode
+  roas:        number
+  revenue:     number
+  revenue_prev: number
+  purchases:   number
+  // Funnel
+  funnel:      MetaFunnel
 }
 
 export interface MetaCampaign {
-  id: string
-  nombre: string
-  estado: string
-  objetivo: string
-  spend: number
+  id:          string
+  nombre:      string
+  estado:      string
+  objetivo:    string
+  spend:       number
   impressions: number
-  clicks: number
-  ctr: number
-  cpc: number
+  clicks:      number
+  ctr:         number
+  cpc:         number
+  // Leads
   conversions: number
-  cpl: number
-  roas: number
+  cpl:         number
+  // Ecommerce
+  purchases:   number
+  revenue:     number
+  roas:        number
 }
 
 export interface MetaDailyRow {
-  fecha: string
-  spend: number
+  fecha:       string
+  spend:       number
   impressions: number
-  clicks: number
+  clicks:      number
   conversions: number
+  purchases:   number
+  revenue:     number
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -65,34 +87,58 @@ function dateRange(daysAgo: number) {
   }
 }
 
-function parseInsights(data: Record<string, string>[]): {
-  spend: number; impressions: number; clicks: number
-  conversions: number; reach: number
+type ActionRow = { action_type: string; value: string }
+
+function getAction(actions: ActionRow[], ...types: string[]): number {
+  for (const type of types) {
+    const a = actions.find(a => a.action_type === type)
+    if (a) return parseFloat(a.value)
+  }
+  return 0
+}
+
+function getActionValue(actionValues: ActionRow[], ...types: string[]): number {
+  for (const type of types) {
+    const a = actionValues.find(a => a.action_type === type)
+    if (a) return parseFloat(a.value)
+  }
+  return 0
+}
+
+function parseInsightsFull(data: Record<string, unknown>[]): {
+  spend: number; impressions: number; clicks: number; reach: number
+  leads: number; purchases: number; revenue: number
+  funnel: MetaFunnel
 } {
   if (!data || data.length === 0) {
-    return { spend: 0, impressions: 0, clicks: 0, conversions: 0, reach: 0 }
+    return { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, revenue: 0, funnel: { page_views: 0, view_content: 0, add_to_cart: 0, initiate_checkout: 0, purchases: 0, revenue: 0 } }
   }
   const row = data[0]
-  // Use only one action type per conversion type to avoid double-counting.
-  // Meta reports both 'lead' (Lead Ads) and 'offsite_conversion.fb_pixel_lead' (pixel)
-  // for the same event — pick whichever is present, preferring 'lead'.
-  const actions = Array.isArray(row.actions)
-    ? (row.actions as { action_type: string; value: string }[])
-    : []
+  const actions:      ActionRow[] = Array.isArray(row.actions)       ? (row.actions as ActionRow[])       : []
+  const actionValues: ActionRow[] = Array.isArray(row.action_values) ? (row.action_values as ActionRow[]) : []
 
-  // Only count 'lead' action type to match Meta Business Manager "Resultados" column.
-  // Meta reports both 'lead' (Lead Ads) and 'offsite_conversion.fb_pixel_lead' (pixel) —
-  // prefer 'lead', fall back to pixel lead if not present.
-  const leadCount      = actions.find(a => a.action_type === 'lead')
-  const pixelLeadCount = actions.find(a => a.action_type === 'offsite_conversion.fb_pixel_lead')
+  const leads     = getAction(actions, 'lead', 'offsite_conversion.fb_pixel_lead')
+  const purchases = getAction(actions, 'purchase', 'offsite_conversion.fb_pixel_purchase')
+  const revenue   = getActionValue(actionValues, 'purchase', 'offsite_conversion.fb_pixel_purchase')
 
-  const conversions = parseFloat(leadCount?.value ?? pixelLeadCount?.value ?? '0')
+  const funnel: MetaFunnel = {
+    page_views:        getAction(actions, 'page_view'),
+    view_content:      getAction(actions, 'view_content', 'offsite_conversion.fb_pixel_view_content'),
+    add_to_cart:       getAction(actions, 'add_to_cart',  'offsite_conversion.fb_pixel_add_to_cart'),
+    initiate_checkout: getAction(actions, 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'),
+    purchases,
+    revenue,
+  }
+
   return {
-    spend:       parseFloat(row.spend ?? '0'),
-    impressions: parseInt(row.impressions ?? '0'),
-    clicks:      parseInt(row.clicks ?? '0'),
-    reach:       parseInt(row.reach ?? '0'),
-    conversions,
+    spend:       parseFloat(row.spend as string ?? '0'),
+    impressions: parseInt(row.impressions as string ?? '0'),
+    clicks:      parseInt(row.clicks as string ?? '0'),
+    reach:       parseInt(row.reach as string ?? '0'),
+    leads,
+    purchases,
+    revenue,
+    funnel,
   }
 }
 
@@ -116,28 +162,26 @@ export async function fetchMetaSummary(adAccountId: string): Promise<MetaSummary
     }),
   ])
 
-  const c = parseInsights(curr.data ?? [])
-  const p = parseInsights(prev.data ?? [])
-
-  const roas = Array.isArray(curr.data?.[0]?.action_values)
-    ? (curr.data[0].action_values as { action_type: string; value: string }[])
-        .filter(a => a.action_type === 'offsite_conversion.fb_pixel_purchase' || a.action_type === 'purchase')
-        .reduce((sum, a) => sum + parseFloat(a.value), 0) / (c.spend || 1)
-    : 0
+  const c = parseInsightsFull(curr.data ?? [])
+  const p = parseInsightsFull(prev.data ?? [])
 
   return {
-    spend:       c.spend,
-    spend_prev:  p.spend,
-    impressions: c.impressions,
-    clicks:      c.clicks,
-    reach:       c.reach,
-    conversions: c.conversions,
-    ctr:         c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
-    cpc:         c.clicks > 0 ? c.spend / c.clicks : 0,
-    cpp:         c.reach > 0 ? (c.spend / c.reach) * 1000 : 0,
-    cpl:         c.conversions > 0 ? c.spend / c.conversions : 0,
-    cpl_prev:    p.conversions > 0 ? p.spend / p.conversions : 0,
-    roas,
+    spend:        c.spend,
+    spend_prev:   p.spend,
+    impressions:  c.impressions,
+    clicks:       c.clicks,
+    reach:        c.reach,
+    conversions:  c.leads,
+    cpl:          c.leads > 0     ? c.spend / c.leads     : 0,
+    cpl_prev:     p.leads > 0     ? p.spend / p.leads     : 0,
+    purchases:    c.purchases,
+    revenue:      c.revenue,
+    revenue_prev: p.revenue,
+    roas:         c.spend > 0     ? c.revenue / c.spend   : 0,
+    ctr:          c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
+    cpc:          c.clicks > 0    ? c.spend / c.clicks    : 0,
+    cpp:          c.reach > 0     ? (c.spend / c.reach) * 1000 : 0,
+    funnel:       c.funnel,
   }
 }
 
@@ -150,12 +194,8 @@ export async function fetchMetaCampaigns(adAccountId: string): Promise<MetaCampa
   })
 
   return (data.data ?? []).map((c: Record<string, unknown>) => {
-    const ins = parseInsights((c.insights as { data: Record<string, string>[] })?.data ?? [])
-    const roas = Array.isArray((c.insights as { data: Record<string, unknown>[] })?.data?.[0]?.action_values)
-      ? ((c.insights as { data: { action_values: { action_type: string; value: string }[] }[] }).data[0].action_values)
-          .filter((a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase')
-          .reduce((sum, a) => sum + parseFloat(a.value), 0) / (ins.spend || 1)
-      : 0
+    const insData = (c.insights as { data: Record<string, unknown>[] })?.data ?? []
+    const ins = parseInsightsFull(insData)
 
     return {
       id:          c.id as string,
@@ -165,11 +205,13 @@ export async function fetchMetaCampaigns(adAccountId: string): Promise<MetaCampa
       spend:       ins.spend,
       impressions: ins.impressions,
       clicks:      ins.clicks,
-      conversions: ins.conversions,
+      conversions: ins.leads,
+      purchases:   ins.purchases,
+      revenue:     ins.revenue,
       ctr:         ins.impressions > 0 ? (ins.clicks / ins.impressions) * 100 : 0,
-      cpc:         ins.clicks > 0 ? ins.spend / ins.clicks : 0,
-      cpl:         ins.conversions > 0 ? ins.spend / ins.conversions : 0,
-      roas,
+      cpc:         ins.clicks > 0      ? ins.spend / ins.clicks               : 0,
+      cpl:         ins.leads > 0       ? ins.spend / ins.leads                : 0,
+      roas:        ins.spend > 0       ? ins.revenue / ins.spend              : 0,
     }
   })
 }
@@ -177,22 +219,22 @@ export async function fetchMetaCampaigns(adAccountId: string): Promise<MetaCampa
 export async function fetchMetaDaily(adAccountId: string): Promise<MetaDailyRow[]> {
   const range = dateRange(30)
   const data = await metaFetch(`/act_${adAccountId}/insights`, {
-    fields: 'spend,impressions,clicks,actions',
+    fields: 'spend,impressions,clicks,actions,action_values',
     time_range: JSON.stringify({ since: range.since, until: range.until }),
     time_increment: '1',
     level: 'account',
   })
 
   return (data.data ?? []).map((row: Record<string, unknown>) => {
-    const acts = Array.isArray(row.actions) ? (row.actions as { action_type: string; value: string }[]) : []
-    const leadAct = acts.find(a => a.action_type === 'lead') ?? acts.find(a => a.action_type === 'offsite_conversion.fb_pixel_lead')
-    const conversions = parseFloat(leadAct?.value ?? '0')
+    const ins = parseInsightsFull([row])
     return {
       fecha:       row.date_start as string,
-      spend:       parseFloat(row.spend as string ?? '0'),
-      impressions: parseInt(row.impressions as string ?? '0'),
-      clicks:      parseInt(row.clicks as string ?? '0'),
-      conversions,
+      spend:       ins.spend,
+      impressions: ins.impressions,
+      clicks:      ins.clicks,
+      conversions: ins.leads,
+      purchases:   ins.purchases,
+      revenue:     ins.revenue,
     }
   })
 }
