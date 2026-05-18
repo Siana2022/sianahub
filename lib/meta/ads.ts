@@ -36,10 +36,13 @@ export interface MetaSummary {
   cpc:          number
   cpp:          number
   reach:        number
-  // Main conversions (driven by conversion_event config)
+  // Main conversions (sum of all configured conversion_events)
   conversions:  number
+  conversions_prev: number
   cpl:          number       // cost per conversion
   cpl_prev:     number
+  // Per-event breakdown: event_name → count
+  conversion_breakdown: Record<string, number>
   // Revenue / ecommerce
   roas:         number
   revenue:      number
@@ -246,25 +249,33 @@ export async function fetchMetaSummary(
   const convCurr = sumActions(c.actions, cfg.conversion_events)
   const convPrev = sumActions(p.actions, cfg.conversion_events)
 
+  // Per-event breakdown for transparency
+  const conversion_breakdown: Record<string, number> = {}
+  for (const evt of cfg.conversion_events) {
+    conversion_breakdown[evt] = getAction(c.actions, evt, pixelFallback(evt))
+  }
+
   const funnel     = buildFunnel(c.actions, c.actionValues, cfg.funnel_steps)
   const funnelPrev = buildFunnel(p.actions, p.actionValues, cfg.funnel_steps)
 
   return {
-    spend:        c.spend,
-    spend_prev:   p.spend,
-    impressions:  c.impressions,
-    clicks:       c.clicks,
-    reach:        c.reach,
-    conversions:  convCurr,
-    cpl:          convCurr > 0 ? c.spend / convCurr : 0,
-    cpl_prev:     convPrev > 0 ? p.spend / convPrev : 0,
-    purchases:    funnel.purchases,
-    revenue:      funnel.revenue,
-    revenue_prev: funnelPrev.revenue,
-    roas:         c.spend > 0 ? funnel.revenue / c.spend : 0,
-    ctr:          c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
-    cpc:          c.clicks > 0      ? c.spend / c.clicks               : 0,
-    cpp:          c.reach > 0       ? (c.spend / c.reach) * 1000       : 0,
+    spend:                c.spend,
+    spend_prev:           p.spend,
+    impressions:          c.impressions,
+    clicks:               c.clicks,
+    reach:                c.reach,
+    conversions:          convCurr,
+    conversions_prev:     convPrev,
+    cpl:                  convCurr > 0 ? c.spend / convCurr : 0,
+    cpl_prev:             convPrev > 0 ? p.spend / convPrev : 0,
+    conversion_breakdown,
+    purchases:            funnel.purchases,
+    revenue:              funnel.revenue,
+    revenue_prev:         funnelPrev.revenue,
+    roas:                 c.spend > 0 ? funnel.revenue / c.spend : 0,
+    ctr:                  c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
+    cpc:                  c.clicks > 0      ? c.spend / c.clicks               : 0,
+    cpp:                  c.reach > 0       ? (c.spend / c.reach) * 1000       : 0,
     funnel,
   }
 }

@@ -8,15 +8,26 @@ interface Props {
   accent?: boolean
 }
 
-function deltaPct(current: number, prev: number) {
-  if (!prev) return 0
+function deltaPct(current: number, prev: number): number | undefined {
+  if (!prev) return undefined   // can't compute % from zero baseline
   return ((current - prev) / Math.abs(prev)) * 100
 }
 
+/** Parse a value that may be a formatted string (e.g. "€3.288") or a raw number */
+function toNumeric(v: string | number): number {
+  if (typeof v === 'number') return v
+  // Strip currency symbols, spaces; keep digits, minus, dot
+  const cleaned = String(v).replace(/[^0-9.-]/g, '')
+  return parseFloat(cleaned)
+}
+
 export default function KpiCard({ label, value, prev, delta, invertColors = false, highlight = false, accent = false }: Props) {
-  const pct = delta !== undefined
+  const numericValue = toNumeric(value)
+  const pct: number | undefined = delta !== undefined
     ? delta
-    : (prev !== undefined ? deltaPct(Number(value), Number(prev)) : undefined)
+    : (prev !== undefined && !isNaN(numericValue)
+        ? deltaPct(numericValue, Number(prev))
+        : undefined)
 
   const isPositive = pct !== undefined && pct > 0
   const isNegative = pct !== undefined && pct < 0

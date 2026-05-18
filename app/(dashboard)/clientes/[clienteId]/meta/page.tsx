@@ -9,9 +9,11 @@ type Funnel = { page_views: number; view_content: number; add_to_cart: number; i
 type Summary = {
   spend: number; spend_prev: number
   impressions: number; clicks: number; reach: number
-  conversions: number; cpl: number; cpl_prev: number
+  conversions: number; conversions_prev: number
+  cpl: number; cpl_prev: number
   ctr: number; cpc: number; cpp: number
   roas: number; revenue: number; revenue_prev: number; purchases: number
+  conversion_breakdown: Record<string, number>
   funnel: Funnel
 }
 type Campaign = {
@@ -71,6 +73,22 @@ export default function MetaAdsPage() {
   const isEcommerce = tipoProyecto === 'ecommerce'
   const f = summary!.funnel
 
+  // Friendly labels for conversion events (for breakdown display)
+  const EVENT_LABELS: Record<string, string> = {
+    lead:                  'Lead',
+    contact:               'Contacto',
+    complete_registration: 'Registro',
+    schedule:              'Cita',
+    submit_application:    'Solicitud',
+    subscribe:             'Suscripción',
+    start_trial:           'Trial',
+    purchase:              'Compra',
+    view_content:          'View Content',
+    add_to_cart:           'Add to Cart',
+    initiate_checkout:     'Checkout',
+    page_view:             'Page View',
+  }
+
   // Friendly labels for known event names
   const STEP_LABELS: Record<string, string> = {
     page_view:             'Page Views',
@@ -126,10 +144,31 @@ export default function MetaAdsPage() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#e8e8e8] border border-[#e8e8e8]">
             <KpiCard label="Inversión"    value={`€${summary!.spend.toFixed(0)}`}       prev={summary!.spend_prev} />
-            <KpiCard label="Leads"        value={summary!.conversions}                   />
+            <KpiCard label="Leads"        value={summary!.conversions}                   prev={summary!.conversions_prev} />
             <KpiCard label="CPL"          value={`€${summary!.cpl.toFixed(2)}`}         prev={summary!.cpl_prev} invertColors />
             <KpiCard label="ROAS"         value={summary!.roas > 0 ? `${summary!.roas.toFixed(2)}x` : '—'} />
           </div>
+          {/* Conversion breakdown — show when multiple events contribute to the total */}
+          {Object.keys(summary!.conversion_breakdown).length > 1 && (
+            <div className="flex flex-wrap gap-2 -mt-4">
+              {Object.entries(summary!.conversion_breakdown)
+                .filter(([, v]) => v > 0)
+                .map(([evt, count]) => {
+                  const shortEvt = evt.startsWith('offsite_conversion.custom.')
+                    ? evt  // custom: shown with raw key (no label available here)
+                    : evt
+                  const label = EVENT_LABELS[shortEvt] ?? shortEvt
+                  return (
+                    <span key={evt} className="font-mono text-[10px] px-2 py-1 bg-white border border-[#e8e8e8] text-[#555555]">
+                      {label}: <span className="font-bold text-[#000000]">{count}</span>
+                    </span>
+                  )
+                })}
+              <span className="font-mono text-[10px] px-2 py-1 bg-[#f5f5f5] text-[#888888]">
+                total: {summary!.conversions}
+              </span>
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#e8e8e8] border border-[#e8e8e8]">
             <KpiCard label="Clicks"      value={summary!.clicks.toLocaleString()} />
             <KpiCard label="Impresiones" value={`${(summary!.impressions / 1000).toFixed(1)}k`} />
