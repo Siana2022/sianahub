@@ -109,9 +109,8 @@ export async function GET(
         })),
         // Flat: rest of configured events
         ...otherRows.map(r => ({
-          rowType:    'event' as const,
-          url:        r.url,
-          pct:        total > 0 ? (r.count / total) * 100 : 0,
+          rowType: 'event' as const,
+          pct:     total > 0 ? (r.count / total) * 100 : 0,
           ...r,
         })),
       ]
