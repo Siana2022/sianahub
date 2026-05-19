@@ -1,7 +1,21 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Rutas internas con su propio Bearer token — excluir del auth redirect
+const INTERNAL_API_ROUTES = [
+  '/api/alertas/run',
+  '/api/ingesta/run',
+  '/api/ingesta/gtm-check',
+]
+
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Excluir rutas internas — tienen su propio sistema de auth
+  if (INTERNAL_API_ROUTES.some(r => pathname.startsWith(r))) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -25,11 +39,7 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user && !pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
