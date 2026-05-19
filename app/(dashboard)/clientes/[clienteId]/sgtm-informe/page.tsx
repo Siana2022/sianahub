@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { RefreshCw, ExternalLink } from 'lucide-react'
 
-type Mode = 'events' | 'lead_type'
+type Mode = 'events' | 'lead_type' | 'combined'
 
 interface SgtmRow {
   key:        string
@@ -94,7 +94,8 @@ export default function SgtmPage() {
       <div className="flex gap-1">
         {([
           { value: 'events'    as Mode, label: 'Eventos configurados' },
-          { value: 'lead_type' as Mode, label: 'Por lead_type (GA4)' },
+          { value: 'lead_type' as Mode, label: 'Por lead_type' },
+          { value: 'combined'  as Mode, label: 'Combinado' },
         ] as { value: Mode; label: string }[]).map(opt => (
           <button
             key={opt.value}
@@ -137,11 +138,18 @@ export default function SgtmPage() {
                 Ve a Editar cliente → sección sGTM → añade los eventos a monitorizar.
               </p>
             </>
-          ) : (
+          ) : mode === 'lead_type' ? (
             <>
               <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin datos de lead_type</p>
               <p className="font-mono text-xs text-[#bbbbbb]">
                 Comprueba que <code className="bg-[#f0f0f0] px-1">lead_type</code> está registrado como dimensión personalizada en GA4 y que hay eventos <code className="bg-[#f0f0f0] px-1">generate_lead</code> en este periodo.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin datos combinados</p>
+              <p className="font-mono text-xs text-[#bbbbbb]">
+                Configura eventos en sGTM y comprueba que <code className="bg-[#f0f0f0] px-1">lead_type</code> está registrado en GA4.
               </p>
             </>
           )}
@@ -150,7 +158,7 @@ export default function SgtmPage() {
         <div className="bg-white border border-[#e8e8e8] overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e8e8e8] flex items-baseline justify-between">
             <h3 className="font-display text-base font-bold">
-              {mode === 'events' ? 'Leads por equipo / producto' : 'Leads por lead_type'}
+              {mode === 'events' ? 'Leads por equipo / producto' : mode === 'lead_type' ? 'Leads por lead_type' : 'Leads combinados'}
             </h3>
             <span className="font-mono text-[9px] text-[#888888] uppercase tracking-wide">{desde} → {hasta}</span>
           </div>
@@ -158,7 +166,7 @@ export default function SgtmPage() {
             <thead>
               <tr className="bg-[#fafafa] border-b border-[#e8e8e8]">
                 {[
-                  mode === 'events' ? 'Equipo' : 'Lead type',
+                  mode === 'events' ? 'Equipo' : 'Lead type / Evento',
                   ...(mode === 'events' ? ['Página de gracias'] : []),
                   'Leads', 'vs periodo ant.', '% del total',
                 ].map(h => (

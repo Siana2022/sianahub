@@ -12,7 +12,7 @@ export async function GET(
   const url   = req.nextUrl
   const desde = url.searchParams.get('desde')
   const hasta = url.searchParams.get('hasta')
-  const mode  = url.searchParams.get('mode') ?? 'events' // 'events' | 'lead_type'
+  const mode  = url.searchParams.get('mode') ?? 'events' // 'events' | 'lead_type' | 'combined'
 
   if (!desde || !hasta) {
     return NextResponse.json({ error: 'Missing desde/hasta' }, { status: 400 })
@@ -35,14 +35,17 @@ export async function GET(
     return NextResponse.json({ error: 'GA4 property not configured' }, { status: 422 })
   }
 
+  const configuredEvents: SgtmEventConfig[] = cliente?.sgtm_events_config?.events ?? []
+
   try {
+
     // ── Mode: lead_type breakdown ──────────────────────────────────────────────
     if (mode === 'lead_type') {
       const counts = await fetchGA4ByLeadType(propertyId, desde, hasta)
       const total  = counts.reduce((s, r) => s + r.count, 0)
       const rows   = counts.map(r => ({
         key:        r.key,
-        label:      r.key,   // raw lead_type value — no config label
+        label:      r.key,
         url:        null,
         count:      r.count,
         count_prev: r.count_prev,
@@ -51,9 +54,48 @@ export async function GET(
       return NextResponse.json({ rows, total, desde, hasta, mode: 'lead_type' })
     }
 
-    // ── Mode: configured events (default) ─────────────────────────────────────
-    const configuredEvents: SgtmEventConfig[] = cliente?.sgtm_events_config?.events ?? []
+    // ── Mode: combined (lead_type breakdown + named events without duplicate) ──
+    if (mode === 'combined') {
+      const nonGenerateEvents = configuredEvents.filter(e => e.key !== 'generate_lead')
 
+      const [leadTypeRows, namedCounts] = await Promise.all([
+        fetchGA4ByLeadType(propertyId, desde, hasta),
+        nonGenerateEvents.length > 0
+          ? fetchGA4EventsByName(propertyId, nonGenerateEvents.map(e => e.key), desde, hasta)
+          : Promise.resolve([]),
+      ])
+
+      // Keys already covered by lead_type — skip to avoid double count
+      const leadTypeKeys = new Set(leadTypeRows.map(r => r.key))
+
+      const extraRows = nonGenerateEvents
+        .filter(cfg => !leadTypeKeys.has(cfg.key))
+        .map(cfg => {
+          const c = namedCounts.find(r => r.key === cfg.key)
+          return {
+            key:        cfg.key,
+            label:      cfg.label,
+            url:        cfg.url ?? null,
+            count:      c?.count      ?? 0,
+            count_prev: c?.count_prev ?? 0,
+          }
+        })
+
+      const merged = [
+        ...leadTypeRows.map(r => ({ key: r.key, label: r.key, url: null as string | null, count: r.count, count_prev: r.count_prev })),
+        ...extraRows,
+      ].sort((a, b) => b.count - a.count)
+
+      const total = merged.reduce((s, r) => s + r.count, 0)
+      const rows  = merged.map(r => ({
+        ...r,
+        pct: total > 0 ? (r.count / total) * 100 : 0,
+      }))
+
+      return NextResponse.json({ rows, total, desde, hasta, mode: 'combined' })
+    }
+
+    // ── Mode: configured events (default) ─────────────────────────────────────
     if (configuredEvents.length === 0) {
       return NextResponse.json({ rows: [], total: 0, desde, hasta, mode: 'events' })
     }
@@ -74,6 +116,7 @@ export async function GET(
     }).sort((a, b) => b.count - a.count)
 
     return NextResponse.json({ rows, total, desde, hasta, mode: 'events' })
+
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
