@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchGA4EventsByName } from '@/lib/google/ga4'
+import { fetchGA4EventsByName, fetchGA4ByLeadType } from '@/lib/google/ga4'
 import type { SgtmEventConfig } from '@/types/cliente'
 
 export async function GET(
@@ -12,6 +12,7 @@ export async function GET(
   const url   = req.nextUrl
   const desde = url.searchParams.get('desde')
   const hasta = url.searchParams.get('hasta')
+  const mode  = url.searchParams.get('mode') ?? 'events' // 'events' | 'lead_type'
 
   if (!desde || !hasta) {
     return NextResponse.json({ error: 'Missing desde/hasta' }, { status: 400 })
@@ -30,23 +31,37 @@ export async function GET(
       : `properties/${cliente.ga4_property_id}`
     : null
 
-  const configuredEvents: SgtmEventConfig[] = cliente?.sgtm_events_config?.events ?? []
-
   if (!propertyId) {
     return NextResponse.json({ error: 'GA4 property not configured' }, { status: 422 })
   }
 
-  if (configuredEvents.length === 0) {
-    return NextResponse.json({ rows: [], desde, hasta })
-  }
-
   try {
-    const eventNames = configuredEvents.map(e => e.key)
-    const counts = await fetchGA4EventsByName(propertyId, eventNames, desde, hasta)
+    // ── Mode: lead_type breakdown ──────────────────────────────────────────────
+    if (mode === 'lead_type') {
+      const counts = await fetchGA4ByLeadType(propertyId, desde, hasta)
+      const total  = counts.reduce((s, r) => s + r.count, 0)
+      const rows   = counts.map(r => ({
+        key:        r.key,
+        label:      r.key,   // raw lead_type value — no config label
+        url:        null,
+        count:      r.count,
+        count_prev: r.count_prev,
+        pct:        total > 0 ? (r.count / total) * 100 : 0,
+      }))
+      return NextResponse.json({ rows, total, desde, hasta, mode: 'lead_type' })
+    }
 
-    // Merge counts with config labels/urls
-    const total = counts.reduce((s, r) => s + r.count, 0)
-    const rows = configuredEvents.map(cfg => {
+    // ── Mode: configured events (default) ─────────────────────────────────────
+    const configuredEvents: SgtmEventConfig[] = cliente?.sgtm_events_config?.events ?? []
+
+    if (configuredEvents.length === 0) {
+      return NextResponse.json({ rows: [], total: 0, desde, hasta, mode: 'events' })
+    }
+
+    const eventNames = configuredEvents.map(e => e.key)
+    const counts     = await fetchGA4EventsByName(propertyId, eventNames, desde, hasta)
+    const total      = counts.reduce((s, r) => s + r.count, 0)
+    const rows       = configuredEvents.map(cfg => {
       const c = counts.find(r => r.key === cfg.key)
       return {
         key:        cfg.key,
@@ -58,7 +73,7 @@ export async function GET(
       }
     }).sort((a, b) => b.count - a.count)
 
-    return NextResponse.json({ rows, total, desde, hasta })
+    return NextResponse.json({ rows, total, desde, hasta, mode: 'events' })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }

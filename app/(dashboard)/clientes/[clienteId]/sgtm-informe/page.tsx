@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { RefreshCw, ExternalLink } from 'lucide-react'
 
+type Mode = 'events' | 'lead_type'
+
 interface SgtmRow {
   key:        string
   label:      string
@@ -35,11 +37,12 @@ export default function SgtmPage() {
   const [error,   setError]   = useState<string | null>(null)
   const [desde,   setDesde]   = useState(() => prevMonth().desde)
   const [hasta,   setHasta]   = useState(() => prevMonth().hasta)
+  const [mode,    setMode]    = useState<Mode>('events')
 
-  const fetchData = useCallback(async (d: string, h: string) => {
+  const fetchData = useCallback(async (d: string, h: string, m: Mode) => {
     setLoading(true); setError(null)
     try {
-      const res  = await fetch(`/api/clientes/${clienteId}/sgtm?desde=${d}&hasta=${h}`)
+      const res  = await fetch(`/api/clientes/${clienteId}/sgtm?desde=${d}&hasta=${h}&mode=${m}`)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setRows(json.rows ?? [])
@@ -51,7 +54,12 @@ export default function SgtmPage() {
     }
   }, [clienteId])
 
-  useEffect(() => { fetchData(desde, hasta) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(desde, hasta, mode) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  function switchMode(m: Mode) {
+    setMode(m)
+    fetchData(desde, hasta, m)
+  }
 
   const inputCls = "font-mono text-[10px] border border-[#e8e8e8] px-2 py-1.5 focus:outline-none focus:border-[#000000] transition-colors"
 
@@ -73,13 +81,33 @@ export default function SgtmPage() {
             <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={inputCls} />
           </div>
           <button
-            onClick={() => fetchData(desde, hasta)}
+            onClick={() => fetchData(desde, hasta, mode)}
             className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide bg-[#F7415C] text-white px-3 py-2 hover:bg-[#000000] transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
             Actualizar
           </button>
         </div>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="flex gap-1">
+        {([
+          { value: 'events'    as Mode, label: 'Eventos configurados' },
+          { value: 'lead_type' as Mode, label: 'Por lead_type (GA4)' },
+        ] as { value: Mode; label: string }[]).map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => switchMode(opt.value)}
+            className={`font-mono text-[9px] uppercase tracking-wide px-3 py-1.5 border transition-colors ${
+              mode === opt.value
+                ? 'bg-[#000000] text-white border-[#000000]'
+                : 'bg-white text-[#888888] border-[#e8e8e8] hover:border-[#000000] hover:text-[#000000]'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -102,21 +130,38 @@ export default function SgtmPage() {
         </div>
       ) : !error && rows.length === 0 ? (
         <div className="bg-white border border-[#e8e8e8] px-6 py-12 text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin eventos configurados</p>
-          <p className="font-mono text-xs text-[#bbbbbb]">
-            Ve a Editar cliente → sección sGTM → añade los eventos a monitorizar.
-          </p>
+          {mode === 'events' ? (
+            <>
+              <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin eventos configurados</p>
+              <p className="font-mono text-xs text-[#bbbbbb]">
+                Ve a Editar cliente → sección sGTM → añade los eventos a monitorizar.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin datos de lead_type</p>
+              <p className="font-mono text-xs text-[#bbbbbb]">
+                Comprueba que <code className="bg-[#f0f0f0] px-1">lead_type</code> está registrado como dimensión personalizada en GA4 y que hay eventos <code className="bg-[#f0f0f0] px-1">generate_lead</code> en este periodo.
+              </p>
+            </>
+          )}
         </div>
       ) : !error && rows.length > 0 ? (
         <div className="bg-white border border-[#e8e8e8] overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e8e8e8] flex items-baseline justify-between">
-            <h3 className="font-display text-base font-bold">Leads por equipo / producto</h3>
+            <h3 className="font-display text-base font-bold">
+              {mode === 'events' ? 'Leads por equipo / producto' : 'Leads por lead_type'}
+            </h3>
             <span className="font-mono text-[9px] text-[#888888] uppercase tracking-wide">{desde} → {hasta}</span>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#fafafa] border-b border-[#e8e8e8]">
-                {['Equipo', 'Página de gracias', 'Leads', 'vs periodo ant.', '% del total'].map(h => (
+                {[
+                  mode === 'events' ? 'Equipo' : 'Lead type',
+                  ...(mode === 'events' ? ['Página de gracias'] : []),
+                  'Leads', 'vs periodo ant.', '% del total',
+                ].map(h => (
                   <th key={h} className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">{h}</th>
                 ))}
               </tr>
@@ -129,21 +174,23 @@ export default function SgtmPage() {
                 return (
                   <tr key={row.key} className="hover:bg-[#fafafa] transition-colors">
                     <td className="px-6 py-3 font-medium text-[#000000]">{row.label}</td>
-                    <td className="px-6 py-3">
-                      {row.url ? (
-                        <a
-                          href={row.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-[10px] text-[#888888] hover:text-[#000000] flex items-center gap-1 transition-colors"
-                        >
-                          {row.url.replace(/^https?:\/\/[^/]+/, '')}
-                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="font-mono text-[10px] text-[#cccccc]">—</span>
-                      )}
-                    </td>
+                    {mode === 'events' && (
+                      <td className="px-6 py-3">
+                        {row.url ? (
+                          <a
+                            href={row.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-[10px] text-[#888888] hover:text-[#000000] flex items-center gap-1 transition-colors"
+                          >
+                            {row.url.replace(/^https?:\/\/[^/]+/, '')}
+                            <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="font-mono text-[10px] text-[#cccccc]">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-3 font-mono text-sm font-bold">{row.count.toLocaleString('es-ES')}</td>
                     <td className="px-6 py-3">
                       {delta !== null ? (
@@ -176,7 +223,7 @@ export default function SgtmPage() {
             <tfoot>
               <tr className="bg-[#fafafa] border-t-2 border-[#000000]">
                 <td className="px-6 py-3 font-mono text-[10px] uppercase tracking-wide font-bold">Total</td>
-                <td />
+                {mode === 'events' && <td />}
                 <td className="px-6 py-3 font-mono text-sm font-bold">{total.toLocaleString('es-ES')}</td>
                 <td />
                 <td className="px-6 py-3 font-mono text-[10px] text-[#888888]">100%</td>

@@ -259,6 +259,67 @@ export async function fetchGA4EventsByName(
   }))
 }
 
+// ── generate_lead breakdown by lead_type custom dimension ─────────────────────
+
+export async function fetchGA4ByLeadType(
+  propertyId: string,
+  since: string,
+  until: string
+): Promise<{ key: string; count: number; count_prev: number }[]> {
+  // Calculate prev period of equal duration
+  const s = new Date(since)
+  const u = new Date(until)
+  const days = Math.round((u.getTime() - s.getTime()) / 86400000) + 1
+  const prevUntilDate = new Date(s); prevUntilDate.setDate(prevUntilDate.getDate() - 1)
+  const prevSinceDate = new Date(prevUntilDate); prevSinceDate.setDate(prevSinceDate.getDate() - days + 1)
+  const prevSince = prevSinceDate.toISOString().slice(0, 10)
+  const prevUntil = prevUntilDate.toISOString().slice(0, 10)
+
+  const eventFilter = {
+    filter: {
+      fieldName: 'eventName',
+      stringFilter: { matchType: 'EXACT', value: 'generate_lead' },
+    },
+  }
+
+  const queryBody = (start: string, end: string) => ({
+    dateRanges:      [dateRange(start, end)],
+    dimensions:      [dim('customEvent:lead_type')],
+    metrics:         [met('eventCount')],
+    dimensionFilter: eventFilter,
+    orderBys:        [{ metric: { metricName: 'eventCount' }, desc: true }],
+    limit: 50,
+  })
+
+  const [currData, prevData] = await Promise.all([
+    ga4Fetch(propertyId, queryBody(since, until)),
+    ga4Fetch(propertyId, queryBody(prevSince, prevUntil)),
+  ])
+
+  const toMap = (data: { rows?: { dimensionValues: { value: string }[]; metricValues: { value: string }[] }[] }) => {
+    const m: Record<string, number> = {}
+    for (const row of data.rows ?? []) {
+      const key = row.dimensionValues[0].value
+      if (key && key !== '(not set)') {
+        m[key] = parseInt(row.metricValues[0].value ?? '0')
+      }
+    }
+    return m
+  }
+
+  const curr = toMap(currData)
+  const prev = toMap(prevData)
+
+  // Union of all keys from both periods
+  const allKeys = [...new Set([...Object.keys(curr), ...Object.keys(prev)])]
+
+  return allKeys.map(key => ({
+    key,
+    count:      curr[key] ?? 0,
+    count_prev: prev[key] ?? 0,
+  })).sort((a, b) => b.count - a.count)
+}
+
 // ── Detect all GA4 events (last year) for sGTM config ─────────────────────────
 
 export async function fetchGA4AllEvents(
