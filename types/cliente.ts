@@ -1,5 +1,11 @@
 export type TipoProyecto = 'leads' | 'ecommerce'
 
+export interface AlertasConfig {
+  cpl_max?:        number  // Alerta si CPL supera este valor (€)
+  leads_drop_pct?: number  // Alerta si leads caen más de X% vs periodo anterior
+  sin_sesiones_h?: number  // Horas sin sesiones GA4 (default 48)
+}
+
 export interface SgtmEventConfig {
   key:    string   // GA4 event name e.g. "lead_liften"
   label:  string   // human-readable e.g. "Liften"
@@ -49,6 +55,7 @@ export interface Cliente {
   sgtm_service_name: string | null
   gcp_project_id: string | null
   sgtm_events_config: SgtmEventsConfig | null
+  alertas_config: AlertasConfig | null
   created_at: string
   updated_at: string
 }

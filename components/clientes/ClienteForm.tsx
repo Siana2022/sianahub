@@ -26,6 +26,10 @@ interface FormState {
   meta_ad_account_id: string; meta_pixel_id: string
   sgtm_url: string; sgtm_service_name: string; gcp_project_id: string; slack_channel_id: string
   sgtm_events: { key: string; label: string; url: string }[]
+  // Alertas
+  alertas_cpl_max:        string
+  alertas_leads_drop_pct: string
+  alertas_sin_sesiones_h: string
 }
 
 // ── Meta event presets ─────────────────────────────────────────────────────────
@@ -104,6 +108,9 @@ function toFormState(c?: Cliente): FormState {
     gcp_project_id:        c?.gcp_project_id        ?? '',
     slack_channel_id:      c?.slack_channel_id      ?? '',
     sgtm_events: c?.sgtm_events_config?.events?.map(e => ({ key: e.key, label: e.label, url: e.url ?? '' })) ?? [],
+    alertas_cpl_max:        c?.alertas_config?.cpl_max?.toString()        ?? '',
+    alertas_leads_drop_pct: c?.alertas_config?.leads_drop_pct?.toString() ?? '30',
+    alertas_sin_sesiones_h: c?.alertas_config?.sin_sesiones_h?.toString() ?? '48',
   }
 }
 
@@ -543,6 +550,11 @@ export default function ClienteForm({ cliente }: Props) {
       sgtm_events_config: form.sgtm_events.length > 0
         ? { events: form.sgtm_events.filter(e => e.key.trim()).map(e => ({ key: e.key.trim(), label: e.label.trim() || e.key.trim(), url: e.url.trim() || undefined })) }
         : null,
+      alertas_config: {
+        cpl_max:        form.alertas_cpl_max        ? parseFloat(form.alertas_cpl_max)        : undefined,
+        leads_drop_pct: form.alertas_leads_drop_pct ? parseFloat(form.alertas_leads_drop_pct) : undefined,
+        sin_sesiones_h: form.alertas_sin_sesiones_h ? parseFloat(form.alertas_sin_sesiones_h) : undefined,
+      },
     }
     const res = await fetch(isEdit ? `/api/clientes/${cliente.id}` : '/api/clientes', {
       method: isEdit ? 'PATCH' : 'POST',
@@ -884,6 +896,65 @@ export default function ClienteForm({ cliente }: Props) {
           >
             + Añadir evento manualmente
           </button>
+        </div>
+      </section>
+
+      {/* ALERTAS */}
+      <section className="space-y-5">
+        <div className="pb-3 border-b-2 border-[#000000]">
+          <h2 className="font-display text-lg font-bold">Alertas</h2>
+          <p className="font-mono text-[9px] text-[#888888] mt-1">
+            Se envían al canal Slack del cliente de lunes a viernes a las 08:00h.
+            Activa o desactiva las alertas con el toggle de la sección General.
+          </p>
+        </div>
+        <div className="bg-[#fafafa] border border-[#e8e8e8] p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>CPL máximo (€)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.alertas_cpl_max}
+                onChange={set('alertas_cpl_max')}
+                placeholder="ej. 25"
+                className={inputCls}
+              />
+              <p className="mt-1 font-mono text-[9px] text-[#888888]">Alerta 🟠 si CPL supera este valor</p>
+            </div>
+            <div>
+              <label className={labelCls}>Caída de leads (%)</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={form.alertas_leads_drop_pct}
+                onChange={set('alertas_leads_drop_pct')}
+                placeholder="30"
+                className={inputCls}
+              />
+              <p className="mt-1 font-mono text-[9px] text-[#888888]">Alerta 🟠 si leads caen más de X% vs periodo anterior</p>
+            </div>
+            <div>
+              <label className={labelCls}>Sin sesiones GA4 (horas)</label>
+              <input
+                type="number"
+                min="1"
+                value={form.alertas_sin_sesiones_h}
+                onChange={set('alertas_sin_sesiones_h')}
+                placeholder="48"
+                className={inputCls}
+              />
+              <p className="mt-1 font-mono text-[9px] text-[#888888]">Alerta 🔴 si GA4 no recibe sesiones en este tiempo</p>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-[#e8e8e8]">
+            <p className="font-mono text-[9px] text-[#888888]">
+              Alertas automáticas también incluidas: sin gasto en Meta, campañas pausadas.
+              Canal Slack: <span className="text-[#000000]">{form.slack_channel_id || '—'}</span>
+            </p>
+          </div>
         </div>
       </section>
 

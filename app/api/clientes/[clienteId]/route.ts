@@ -46,6 +46,11 @@ const updateSchema = z.object({
   resumen_widgets: z.array(z.string()).optional(),
   ga4_conversion_events: z.string().optional().nullable(),
   sgtm_events_config: sgtmEventsConfigSchema.optional().nullable(),
+  alertas_config: z.object({
+    cpl_max:        z.number().positive().optional(),
+    leads_drop_pct: z.number().min(1).max(100).optional(),
+    sin_sesiones_h: z.number().positive().optional(),
+  }).optional().nullable(),
 })
 
 export async function GET(
