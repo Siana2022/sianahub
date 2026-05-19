@@ -44,6 +44,7 @@ export async function GET(
       const counts = await fetchGA4ByLeadType(propertyId, desde, hasta)
       const total  = counts.reduce((s, r) => s + r.count, 0)
       const rows   = counts.map(r => ({
+        rowType:    'event' as const,
         key:        r.key,
         label:      r.key,
         url:        null,
@@ -54,43 +55,66 @@ export async function GET(
       return NextResponse.json({ rows, total, desde, hasta, mode: 'lead_type' })
     }
 
-    // ── Mode: combined (lead_type breakdown + named events without duplicate) ──
+    // ── Mode: combined (árbol: generate_lead expandido + resto de eventos) ─────
     if (mode === 'combined') {
       const nonGenerateEvents = configuredEvents.filter(e => e.key !== 'generate_lead')
 
-      const [leadTypeRows, namedCounts] = await Promise.all([
+      const [leadTypeRows, namedCounts, generateLeadCounts] = await Promise.all([
         fetchGA4ByLeadType(propertyId, desde, hasta),
         nonGenerateEvents.length > 0
           ? fetchGA4EventsByName(propertyId, nonGenerateEvents.map(e => e.key), desde, hasta)
           : Promise.resolve([]),
+        fetchGA4EventsByName(propertyId, ['generate_lead'], desde, hasta),
       ])
 
-      // Keys already covered by lead_type — skip to avoid double count
-      const leadTypeKeys = new Set(leadTypeRows.map(r => r.key))
+      const glData  = generateLeadCounts.find(r => r.key === 'generate_lead')
+      const glTotal = glData?.count      ?? 0
+      const glPrev  = glData?.count_prev ?? 0
 
-      const extraRows = nonGenerateEvents
-        .filter(cfg => !leadTypeKeys.has(cfg.key))
-        .map(cfg => {
-          const c = namedCounts.find(r => r.key === cfg.key)
-          return {
-            key:        cfg.key,
-            label:      cfg.label,
-            url:        cfg.url ?? null,
-            count:      c?.count      ?? 0,
-            count_prev: c?.count_prev ?? 0,
-          }
-        })
+      // Other configured events (non generate_lead) sorted by count
+      const otherRows = nonGenerateEvents.map(cfg => {
+        const c = namedCounts.find(r => r.key === cfg.key)
+        return {
+          key:        cfg.key,
+          label:      cfg.label,
+          url:        cfg.url ?? null,
+          count:      c?.count      ?? 0,
+          count_prev: c?.count_prev ?? 0,
+        }
+      }).sort((a, b) => b.count - a.count)
 
-      const merged = [
-        ...leadTypeRows.map(r => ({ key: r.key, label: r.key, url: null as string | null, count: r.count, count_prev: r.count_prev })),
-        ...extraRows,
-      ].sort((a, b) => b.count - a.count)
+      const otherTotal = otherRows.reduce((s, r) => s + r.count, 0)
+      const total      = glTotal + otherTotal
 
-      const total = merged.reduce((s, r) => s + r.count, 0)
-      const rows  = merged.map(r => ({
-        ...r,
-        pct: total > 0 ? (r.count / total) * 100 : 0,
-      }))
+      const rows = [
+        // Parent: generate_lead
+        {
+          rowType:    'parent' as const,
+          key:        'generate_lead',
+          label:      'generate_lead',
+          url:        null as string | null,
+          count:      glTotal,
+          count_prev: glPrev,
+          pct:        total > 0 ? (glTotal / total) * 100 : 0,
+        },
+        // Children: lead_type breakdown
+        ...leadTypeRows.map(r => ({
+          rowType:    'child' as const,
+          key:        r.key,
+          label:      r.key,
+          url:        null as string | null,
+          count:      r.count,
+          count_prev: r.count_prev,
+          pct:        glTotal > 0 ? (r.count / glTotal) * 100 : 0,
+        })),
+        // Flat: rest of configured events
+        ...otherRows.map(r => ({
+          rowType:    'event' as const,
+          url:        r.url,
+          pct:        total > 0 ? (r.count / total) * 100 : 0,
+          ...r,
+        })),
+      ]
 
       return NextResponse.json({ rows, total, desde, hasta, mode: 'combined' })
     }
@@ -106,6 +130,7 @@ export async function GET(
     const rows       = configuredEvents.map(cfg => {
       const c = counts.find(r => r.key === cfg.key)
       return {
+        rowType:    'event' as const,
         key:        cfg.key,
         label:      cfg.label,
         url:        cfg.url ?? null,

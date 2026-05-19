@@ -4,9 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { RefreshCw, ExternalLink } from 'lucide-react'
 
-type Mode = 'events' | 'lead_type' | 'combined'
+type Mode    = 'events' | 'lead_type' | 'combined'
+type RowType = 'event' | 'parent' | 'child'
 
 interface SgtmRow {
+  rowType:    RowType
   key:        string
   label:      string
   url:        string | null
@@ -27,6 +29,33 @@ function prevMonth() {
 function deltaPct(curr: number, prev: number): number | null {
   if (!prev) return null
   return ((curr - prev) / prev) * 100
+}
+
+function DeltaBadge({ curr, prev }: { curr: number; prev: number }) {
+  const delta = deltaPct(curr, prev)
+  if (delta === null) return <span className="font-mono text-[10px] text-[#cccccc]">—</span>
+  const isPos = delta > 0
+  const isNeg = delta < 0
+  return (
+    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-sm ${
+      isPos ? 'bg-[#edfaf2] text-[#1a7a4a]' :
+      isNeg ? 'bg-[#fff0f2] text-[#F7415C]' :
+      'bg-[#fef8ed] text-[#d4820a]'
+    }`}>
+      {isPos ? '▲' : isNeg ? '▼' : '—'} {Math.abs(delta).toFixed(1)}%
+    </span>
+  )
+}
+
+function PctBar({ pct }: { pct: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-24 h-1.5 bg-[#e8e8e8] rounded-full overflow-hidden">
+        <div className="h-full bg-[#000000] rounded-full" style={{ width: `${Math.min(pct, 100).toFixed(1)}%` }} />
+      </div>
+      <span className="font-mono text-[10px] text-[#555555]">{pct.toFixed(1)}%</span>
+    </div>
+  )
 }
 
 export default function SgtmPage() {
@@ -62,6 +91,7 @@ export default function SgtmPage() {
   }
 
   const inputCls = "font-mono text-[10px] border border-[#e8e8e8] px-2 py-1.5 focus:outline-none focus:border-[#000000] transition-colors"
+  const showUrlCol = mode === 'events'
 
   return (
     <div className="p-8 space-y-8">
@@ -96,7 +126,7 @@ export default function SgtmPage() {
           { value: 'events'    as Mode, label: 'Eventos configurados' },
           { value: 'lead_type' as Mode, label: 'Por lead_type' },
           { value: 'combined'  as Mode, label: 'Combinado' },
-        ] as { value: Mode; label: string }[]).map(opt => (
+        ]).map(opt => (
           <button
             key={opt.value}
             onClick={() => switchMode(opt.value)}
@@ -134,15 +164,13 @@ export default function SgtmPage() {
           {mode === 'events' ? (
             <>
               <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin eventos configurados</p>
-              <p className="font-mono text-xs text-[#bbbbbb]">
-                Ve a Editar cliente → sección sGTM → añade los eventos a monitorizar.
-              </p>
+              <p className="font-mono text-xs text-[#bbbbbb]">Ve a Editar cliente → sección sGTM → añade los eventos a monitorizar.</p>
             </>
           ) : mode === 'lead_type' ? (
             <>
               <p className="font-mono text-[10px] uppercase tracking-[2px] text-[#888888] mb-2">Sin datos de lead_type</p>
               <p className="font-mono text-xs text-[#bbbbbb]">
-                Comprueba que <code className="bg-[#f0f0f0] px-1">lead_type</code> está registrado como dimensión personalizada en GA4 y que hay eventos <code className="bg-[#f0f0f0] px-1">generate_lead</code> en este periodo.
+                Comprueba que <code className="bg-[#f0f0f0] px-1">lead_type</code> está registrado como dimensión personalizada en GA4.
               </p>
             </>
           ) : (
@@ -165,73 +193,87 @@ export default function SgtmPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#fafafa] border-b border-[#e8e8e8]">
-                {[
-                  mode === 'events' ? 'Equipo' : 'Lead type / Evento',
-                  ...(mode === 'events' ? ['Página de gracias'] : []),
-                  'Leads', 'vs periodo ant.', '% del total',
-                ].map(h => (
-                  <th key={h} className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">{h}</th>
-                ))}
+                <th className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">
+                  {mode === 'events' ? 'Equipo' : 'Lead type / Evento'}
+                </th>
+                {showUrlCol && (
+                  <th className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">Página de gracias</th>
+                )}
+                <th className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">Leads</th>
+                <th className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">vs periodo ant.</th>
+                <th className="px-6 py-2.5 font-mono text-[9px] tracking-[1.5px] uppercase text-[#888888] text-left">% del total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e8e8e8]">
-              {rows.map(row => {
-                const delta = deltaPct(row.count, row.count_prev)
-                const isPos = delta !== null && delta > 0
-                const isNeg = delta !== null && delta < 0
+              {rows.map((row, i) => {
+                const isParent = row.rowType === 'parent'
+                const isChild  = row.rowType === 'child'
+
+                // Separator before first non-child event row in combined mode
+                const prevRow = rows[i - 1]
+                const showSeparator = mode === 'combined' && row.rowType === 'event' && prevRow?.rowType === 'child'
+
                 return (
-                  <tr key={row.key} className="hover:bg-[#fafafa] transition-colors">
-                    <td className="px-6 py-3 font-medium text-[#000000]">{row.label}</td>
-                    {mode === 'events' && (
+                  <>
+                    {showSeparator && (
+                      <tr key={`sep-${row.key}`}>
+                        <td colSpan={showUrlCol ? 5 : 4} className="px-6 py-0">
+                          <div className="border-t-2 border-dashed border-[#e8e8e8]" />
+                        </td>
+                      </tr>
+                    )}
+                    <tr
+                      key={row.key + row.rowType}
+                      className={`transition-colors ${
+                        isParent ? 'bg-[#f5f5f5] hover:bg-[#eeeeee]' :
+                        isChild  ? 'hover:bg-[#fafafa]' :
+                        'hover:bg-[#fafafa]'
+                      }`}
+                    >
+                      <td className={`py-3 font-medium ${isChild ? 'pl-12 pr-6' : 'px-6'}`}>
+                        {isChild && (
+                          <span className="text-[#cccccc] mr-1.5 font-mono text-[10px]">└</span>
+                        )}
+                        <span className={isParent ? 'font-mono text-[11px] uppercase tracking-wide font-bold' : ''}>
+                          {row.label}
+                        </span>
+                      </td>
+                      {showUrlCol && (
+                        <td className="px-6 py-3">
+                          {row.url ? (
+                            <a href={row.url} target="_blank" rel="noreferrer"
+                              className="font-mono text-[10px] text-[#888888] hover:text-[#000000] flex items-center gap-1 transition-colors">
+                              {row.url.replace(/^https?:\/\/[^/]+/, '')}
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                            </a>
+                          ) : (
+                            <span className="font-mono text-[10px] text-[#cccccc]">—</span>
+                          )}
+                        </td>
+                      )}
+                      <td className={`px-6 py-3 font-mono text-sm ${isParent ? 'font-bold' : 'font-bold'}`}>
+                        {row.count.toLocaleString('es-ES')}
+                      </td>
                       <td className="px-6 py-3">
-                        {row.url ? (
-                          <a
-                            href={row.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-[10px] text-[#888888] hover:text-[#000000] flex items-center gap-1 transition-colors"
-                          >
-                            {row.url.replace(/^https?:\/\/[^/]+/, '')}
-                            <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                          </a>
+                        <DeltaBadge curr={row.count} prev={row.count_prev} />
+                      </td>
+                      <td className="px-6 py-3">
+                        {isChild ? (
+                          // Children show % of generate_lead parent
+                          <span className="font-mono text-[10px] text-[#888888]">{row.pct.toFixed(1)}% de GL</span>
                         ) : (
-                          <span className="font-mono text-[10px] text-[#cccccc]">—</span>
+                          <PctBar pct={row.pct} />
                         )}
                       </td>
-                    )}
-                    <td className="px-6 py-3 font-mono text-sm font-bold">{row.count.toLocaleString('es-ES')}</td>
-                    <td className="px-6 py-3">
-                      {delta !== null ? (
-                        <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-sm ${
-                          isPos ? 'bg-[#edfaf2] text-[#1a7a4a]' :
-                          isNeg ? 'bg-[#fff0f2] text-[#F7415C]' :
-                          'bg-[#fef8ed] text-[#d4820a]'
-                        }`}>
-                          {isPos ? '▲' : isNeg ? '▼' : '—'} {Math.abs(delta).toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span className="font-mono text-[10px] text-[#cccccc]">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-1.5 bg-[#e8e8e8] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#000000] rounded-full"
-                            style={{ width: `${Math.min(row.pct, 100).toFixed(1)}%` }}
-                          />
-                        </div>
-                        <span className="font-mono text-[10px] text-[#555555]">{row.pct.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                  </tr>
+                    </tr>
+                  </>
                 )
               })}
             </tbody>
             <tfoot>
               <tr className="bg-[#fafafa] border-t-2 border-[#000000]">
                 <td className="px-6 py-3 font-mono text-[10px] uppercase tracking-wide font-bold">Total</td>
-                {mode === 'events' && <td />}
+                {showUrlCol && <td />}
                 <td className="px-6 py-3 font-mono text-sm font-bold">{total.toLocaleString('es-ES')}</td>
                 <td />
                 <td className="px-6 py-3 font-mono text-[10px] text-[#888888]">100%</td>
